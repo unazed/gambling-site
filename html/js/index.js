@@ -127,7 +127,7 @@ $(window).on("load", function() {
     window.location.href = "unsupported?code=400";
     return;
   }
-  window.ws = new WebSocket("wss://" + window.location.host + "/ws-tirami");
+  window.ws = new WebSocket("wss://" + window.location.host + "/ws-gambling");
   window.ws.onerror = function() {
     display_notif("failed to connect to server websocket feed.", "error");
   }

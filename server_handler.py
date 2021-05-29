@@ -24,7 +24,7 @@ from server_api.https_server import HttpsServer
 from server_api.websocket_interface import WebsocketPacket, CompressorSession
 
 
-class TiramiWebsocketClient:
+class GamblingSiteWebsocketClient:
     def __init__(self, headers, extensions, server, trans, addr):
         server_api.websocket_interface.EXTENSIONS.update(extensions)
         self.trans = trans
@@ -505,22 +505,14 @@ def preinit_whitelist(server, addr):
 
 server = HttpsServer(
     root_directory="html/",
-    host="", port=443,
-    cert_chain=".ssl/tirami.net.pem",
-    priv_key=".ssl/tirami.net.key",
+    host="", port=8443,
+    cert_chain=".ssl/gambling-site.crt",
+    priv_key=".ssl/gambling-site.key",
     callbacks={
         "on_connection_made": preinit_whitelist
         },
     subdomain_map=server_constants.SUBDOMAIN_MAP
     )
-
-server.client_listener_pipe, slave = multiprocessing.Pipe()
-server.client_listener_proc = multiprocessing.Process(
-        target=start_client_listener, args=(
-                "", 8443, slave 
-            )
-        )
-server.client_listener_proc.start()
 
 
 @server.route("GET", "/", subdomain="*")
@@ -545,11 +537,11 @@ def pseudo_file(metadata, fid):
                 "Content-Disposition": f'filename="{fid}"'
             })
 
-@server.route("websocket", "/ws-tirami", subdomain=["www"])
-def tirami_websocket_handler(headers, idx, extensions, prot, addr, data):
-    print("registering new Tirami websocket transport")
+@server.route("websocket", "/ws-gambling", subdomain="*")
+def gambling_site_websocket_handler(headers, idx, extensions, prot, addr, data):
+    print("registering new Gambling Site websocket transport")
     if idx not in server.clients:
-        server.clients[idx] = TiramiWebsocketClient(
+        server.clients[idx] = GamblingSiteWebsocketClient(
             headers, extensions, server, prot.trans, addr
         )
     prot.on_data_received = server.clients[idx]
