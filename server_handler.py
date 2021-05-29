@@ -17,10 +17,8 @@ import pprint
 import server_constants
 import server_utils
 import server_api.websocket_interface
-from server_api.services import schedule_service
 from server_api.https_server import HttpsServer
 from server_api.websocket_interface import WebsocketPacket, CompressorSession
-from server_api.service_handler import start_client_listener
 
 
 class TiramiWebsocketClient:
@@ -446,90 +444,6 @@ class TiramiWebsocketClient:
                     "content": message
                 })
                 self.server.message_cache.append(obj)
-            elif action == "service":
-                if not (res := server_utils.ensure_contains(
-                        self.trans, content, ("name", "usernames")
-                        )):
-                    return
-                elif not self.authentication:
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "action": "do_load",
-                        "data": self.server.send_file(
-                            server_constants.SUPPORTED_WS_EVENTS['forbidden']
-                        )
-                    }))
-                    return
-                name, usernames = res
-                usernames = usernames.splitlines()
-                if name not in server_constants.SUPPORTED_SERVICES:
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "error": f"{escape(name)} isn't a registered service"
-                    }))
-                    return
-                rank = server_constants.RANK_PROPERTIES[self.authentication['rank']]
-                if self.tasks_scheduled > rank['max_tasks']:
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "error": "you may only schedule at most "
-                                f"{rank['max_tasks']} services",
-                    }))
-                    return
-                elif len(usernames) > rank['max_usernames']:
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "error": "you may only check at most "
-                                f"{rank['max_usernames']} usernames",
-                    }))
-                    return
-                id = max(self.server.service_tasks, default=-1) + 1
-                self.server.service_tasks[id] = {
-                    "task": schedule_service(
-                        self, self.server.loop, name, usernames,
-                        self.service_callback, id
-                        ),
-                    "scheduled_by": self.authentication,
-                    "started": time.time(),
-                    "service": name
-                    }
-                self.trans.write(self.packet_ctor.construct_response({
-                    "action": "do_load",
-                    "data": self.server.read_file(
-                        server_constants.SUPPORTED_WS_EVENTS['service_notify'],
-                        format={
-                            "$$message": f"'task id: {id} scheduled, check your p"
-                                        "rofile to check its status'",
-                        }
-                    )
-                }))
-                self.tasks_scheduled += 1
-                self.tasks_overall += 1
-            elif action == "service_results":
-                if not self.authentication:
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "action": "do_load",
-                        "data": self.server.read_file(
-                            server_constants.SUPPORTED_WS_EVENTS['forbidden']
-                        )
-                    }))
-                    return
-
-                tasks = defaultdict(dict)
-                for id, res in self.server.service_tasks.items():
-                    result = False
-                    if res['scheduled_by'] != self.authentication:
-                        continue
-                    elif res['task'].done():
-                        fid = f"{res['service']}-{token_urlsafe(16)}.json"
-                        self.server.pseudo_files[fid] = res['task'].result()
-                        print(f"created new pseudo-file {fid!r}")
-                        result = f"/pseudo-file?fid={fid}"
-                    tasks[res['service']][id] = {
-                            "result": result,
-                            "started": time.time() - res['started']
-                            }
-
-                self.trans.write(self.packet_ctor.construct_response({
-                    "action": "service_results",
-                    "data": tasks
-                    }))
             elif action == "profile_info":
                 if not self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
@@ -555,23 +469,6 @@ class TiramiWebsocketClient:
             print("received weird opcode, closing for inspection",
                     hex(data['opcode']))
             self.trans.close()
-
-    def service_callback(self, id):
-        service_name = inspect.currentframe().f_back.f_code.co_name  # Yuck !!!
-        self.trans.write(self.packet_ctor.construct_response({
-            "action": "do_load",
-            "data": self.server.read_file(
-                server_constants.SUPPORTED_WS_EVENTS['service_notify'],
-                format={
-                    "$$message": f'"task {service_name}#{id} finished '
-                                 f'{time.time() - self.server.service_tasks[id]["started"]:.2f}'
-                                 ' seconds ago"'
-                }
-            )
-        }))
-        print("took", time.time() - self.server.service_tasks[id]['started'],
-                "seconds")
-        self.tasks_scheduled -= 1
 
     def on_close(self, prot, addr, reason):
         ip = self.headers.get("cf-connecting-ip", addr[0])
@@ -728,7 +625,6 @@ with open("logins.db") as logins:
 server.clients = {}
 
 server.message_cache = []
-server.service_tasks = {}
 
 server.pseudo_files = {}
 
