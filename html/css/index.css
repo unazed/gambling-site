@@ -1,0 +1,109 @@
+html, body {
+  height: 96%
+}
+
+div#error_div {
+  position: absolute;
+  z-index: 1000;
+  right: 0;
+  margin-top: 1em;
+  margin-right: 1em;
+}
+
+div#error_div p {
+  margin-bottom: 1rem;
+  background-color: #fff;
+  border: 1px solid #fff;
+  border-radius: 5px;
+  padding: 8px;
+  box-shadow: 7px 5px 20px 0px rgba(0, 0, 0, 0.4);
+}
+
+div#error_div p img {
+  margin-right: 1em;
+}
+
+.navbar-brand {
+  padding-left: 1em;
+  padding-right: 1em;
+  margin-right: 0;
+}
+
+.navbar-toggler {
+  margin-right: 1em !important;
+}
+
+.nav-item, .nav-item.active {
+  padding-left: 1em !important;
+}
+
+div#main_container, div#chatbox {
+  margin: 1em;
+  padding: 5px;
+  flex: 1;
+  overflow: auto;
+}
+
+div#chatbox {
+  margin-left: 0;
+  width: 27%;
+  flex: initial;
+}
+
+#chatbox-messages {
+  margin-top: 0.5em;
+  padding: .375rem .75rem;
+  overflow: auto;
+}
+
+.chatbox-message {
+  word-break: normal;
+  margin-bottom: .375rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.chatbox-message label {
+  color: rgba(73, 80, 87, .7);
+  transition: color 0.3s ease-in-out;
+}
+
+.chatbox-message:hover  label {
+  color: rgba(73, 80, 87, 1);
+}
+
+.message-username {
+  margin-right: 5px;
+}
+
+.service-ico {
+  float: right;
+}
+
+#service-container {
+  padding: 1em;
+}
+
+#service-subcontainer {
+  margin-right: 1em;
+  width: 50%;
+  flex-grow: 1;
+}
+
+#service-output {
+  width: 50%;
+  flex-grow: 1;
+}
+
+#service-username {
+  margin-bottom: 1em;
+  height: 10em;
+}
+
+.dropdown-custom {
+  margin: .125rem 0 1em!important;
+  max-height: 15em!important;
+  overflow: auto!important;
+  position: inherit!important;
+  display: initial!important;
+  box-shadow: none!important;
+}
