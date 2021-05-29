@@ -166,7 +166,7 @@ class GamblingSiteWebsocketClient:
                     }))
                     return
                 elif not (res := server_utils.ensure_contains(
-                        self.trans, content, ("username", "password")
+                        self.trans, content, ("email", "password")
                         )):
                     self.trans.write(self.packet_ctor.construct_response({
                         "error": "either 'username' or 'password' wasn't passed"
@@ -179,34 +179,8 @@ class GamblingSiteWebsocketClient:
                         "data": self.server.read_file(
                             server_constants.SUPPORTED_WS_EVENTS['register_fail'],
                             format={
-                                "$$object": "username",
-                                "$$reason": '"username exists"'
-                            }
-                        )
-                    }))
-                    return
-                elif not username or any(
-                    c not in string.ascii_letters + string.digits + "_" for c in username
-                    ):
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "action": "do_load",
-                        "data": self.server.read_file(
-                            server_constants.SUPPORTED_WS_EVENTS['register_fail'],
-                            format={
-                                "$$object": "username",
-                                "$$reason": '"username must be [a-zA-Z0-9_]"'
-                            }
-                        )
-                    }))
-                    return
-                elif not (1 < len(username) < 16):
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "action": "do_load",
-                        "data": self.server.read_file(
-                            server_constants.SUPPORTED_WS_EVENTS['register_fail'],
-                            format={
-                                "$$object": "username",
-                                "$$reason": '"username must be between 2 and 15 characters"'
+                                "$$object": "email",
+                                "$$reason": '"email exists"'
                             }
                         )
                     }))
@@ -621,7 +595,7 @@ server.clients = {}
 server.message_cache = []
 server.pseudo_files = {}
 
-firebase_admin.initialize(credentials.Certificate("firebase_key.json"))
+firebase_admin.initialize_app(credentials.Certificate("firebase_key.json"))
 print("initialized Google Firebase")
 
 server.loop.run_until_complete(main_loop(server))

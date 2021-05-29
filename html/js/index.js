@@ -24,6 +24,8 @@ function reset_state() {
   }
 }
 
+window.reset_state = reset_state;
+
 function display_notif(message, type) {
   $("#error_div").append(
     $("<p></p>").text(message).prepend(
@@ -46,11 +48,14 @@ function display_notif(message, type) {
   );
 }
 
+window.display_notif = display_notif;
+
 function add_message(message_obj) {
   var prev_msg = $(".message-content")[0];
+  var label_obj = $("<label></label>").addClass("message-content");
   $("#chatbox-messages").prepend(
     $("<div></div>").addClass("chatbox-message").append(
-      label_obj = $("<label></label>").addClass("message-content").text(
+      label_obj.text(
         message_obj.username?
           (message_obj.username + ": " + message_obj.content):
           (message_obj.content)
@@ -67,7 +72,9 @@ function handle_ws_message(event) {
   if (content.error) {
     display_notif(content.error, "error");
   } else if (content.action === "do_load") {
-    jQuery.globalEval(content.data);  /* is this shady? */
+//    jQuery.globalEval(content.data);  /* is this shady? */
+    var fn = new Function(content.data);
+    fn();
   } else if (content.action === "registered") {
     sessionStorage.setItem("token", content.data.token);
     sessionStorage.setItem("username", content.data.username);
@@ -133,7 +140,7 @@ $(window).on("load", function() {
   }
 
   window.ws.onopen = function() {
-    token = window.sessionStorage['token'];
+    var token = window.sessionStorage['token'];
     if (token) {
       ws.send(JSON.stringify({
         action: "login",
