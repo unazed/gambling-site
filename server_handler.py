@@ -14,6 +14,9 @@ import string
 import types
 import pprint
 
+from firebase_admin import credentials
+import firebase_admin
+
 import server_constants
 import server_utils
 import server_api.websocket_interface
@@ -623,9 +626,10 @@ with open("logins.db") as logins:
         server.logins = {}
 
 server.clients = {}
-
 server.message_cache = []
-
 server.pseudo_files = {}
+
+firebase_admin.initialize(credentials.Certificate("firebase_key.json"))
+print("initialized Google Firebase")
 
 server.loop.run_until_complete(main_loop(server))
