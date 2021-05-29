@@ -6,9 +6,29 @@
     <link rel='stylesheet' href="html/css/bootstrap.min.css">
     <link rel='stylesheet' href="html/css/index.css">
     <link rel="shortcut icon" href="html/img/favicon.ico">
+
+
+
     <title>Gambling Site</title>
   </head>
   <body>
+    <!-- Google Firebase & analytics -->
+    <script src="https://www.gstatic.com/firebasejs/8.6.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.2/firebase-analytics.js"></script>
+    <script>
+      var firebaseConfig = {
+        apiKey: "AIzaSyDFl6ewwUVBiG-tyU5nTPGQhYXupdTUd5I",
+        authDomain: "gambling-site-c11d0.firebaseapp.com",
+        projectId: "gambling-site-c11d0",
+        storageBucket: "gambling-site-c11d0.appspot.com",
+        messagingSenderId: "744868340607",
+        appId: "1:744868340607:web:af7627a3e83fd2f5bb304a",
+        measurementId: "G-S0ZRN5QJWJ"
+      };
+      firebase.initializeApp(firebaseConfig);
+      firebase.analytics();
+    </script>
+
     <div id="error_div" class="text-dark">
     </div>
 
