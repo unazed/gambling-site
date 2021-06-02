@@ -7,12 +7,20 @@ $("#main_container").empty().append(
   <input type="text" id="input_email" class="form-control"
     placeholder="Email" aria-label="email" aria-describedby="basic-addon1">
 </div>
+
+<div class="input-group mb-3">
+  <input type="text" id="input_username" class="form-control"
+    placeholder="Username" aria-label="username" aria-describedby="basic-addon1">
+</div>
+
 <div class="input-group mb-3">
   <input type="password" id="input_password" class="form-control"
     placeholder="Password">
-</div>`);
+</div>
+`);
 
 var email = $("#input_email");
+var username = $("#input_username");
 var password = $("#input_password");
 var button = $('<button type="submit" class="btn btn-secondary">Register</button>');
 
@@ -20,8 +28,11 @@ $("#main_container").append(button);
 if ($$username) {
   email.prop("disabled", true);
   password.prop("disabled", true);
+  username.prop("disabled", true);
   button.prop("disabled", true);
+
   display_notif("you're already logged in", "warning");
+  
   setTimeout(function() {
     window.ws.send(JSON.stringify({
       action: "event_handler",
@@ -30,15 +41,15 @@ if ($$username) {
   }, 2000);
 } else {
   $(button).click(function() {
-    firebase.auth().createUserWithEmailAndPassword(email.val(), password.val())
-      .then((userCredential) => {
-        window.user_object = userCredential.user;
-        display_notif("successfully registered", "success");
-      })
-      .catch((error) => {
-        var errorCode = error.code;
-        var errorMessage = error.message;
-        display_notif(errorMessage, "error");
-      });
+    username.prop("disabled", true);
+    password.prop("disabled", true);
+    email.prop("disabled", true);
+
+    window.ws.send(JSON.stringify({
+      action: "register",
+      email: email.val(),
+      username: username.val(),
+      password: password.val()
+    }));
   });
 }

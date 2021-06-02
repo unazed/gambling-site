@@ -284,7 +284,10 @@ class HttpsServer(SocketServer):
             upgrade_fn(metadata)
             return
             # this doesn't necessarily mean failure
-        print(f"{method['method']} {method['path']} under {subdomain}")
+        if subdomain is not None:
+            print(f"{method['method']} {method['path']} under {subdomain}")
+        else:
+            print(f"{method['method']} {method['path']}")
         resp = route['function'](
             metadata,
             **{k: v for k, v in query_string.items()

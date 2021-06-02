@@ -17,7 +17,7 @@ def ensure_contains(self, data, keys):
 
 def commit_logins(server):
     with open("logins.db", "w") as logins:
-        json.dump(server.logins, logins)
+        json.dump(server.logins, logins, indent=4)
 
 
 def commit_clients(server):

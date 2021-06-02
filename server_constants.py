@@ -1,6 +1,6 @@
 from ipaddress import ip_network
 from functools import partial
-
+import math
 
 def get_mimetype(name):
     return MIMETYPES.get(name.split(".")[-1], "text/plain")
@@ -49,8 +49,8 @@ SUPPORTED_WS_ACTIONS = [
     "navigation",
     "initialize_chat",
     "send_message",
-    "service", "service_results",
-    "profile_info"
+    "profile_info",
+    "userlist_update"
 ]
 
 SUPPORTED_REGISTRAR_ACTIONS = [
@@ -102,14 +102,33 @@ RANK_PROPERTIES = {
 
 RETRY_ATTEMPTS = 1
 
+MAX_LEVEL = 100
+LEVEL_INDICES = []
+_level_xp_acc = 0
+for _level in range(1 + MAX_LEVEL):
+    _level_xp_acc += math.ceil(_level / 10) * 100
+    LEVEL_INDICES.append(_level_xp_acc)
+
 WHITELISTED_RANGES = [*map(ip_network, [
-    "0.0.0.0/0"
+    "103.21.244.0/22", "2400:cb00::/32",
+    "103.22.200.0/22", "2606:4700::/32",
+    "103.31.4.0/22", "2803:f800::/32",
+    "104.16.0.0/13", "2405:b500::/32",
+    "104.24.0.0/14", "2405:8100::/32",
+    "108.162.192.0/18", "2a06:98c0::/29",
+    "131.0.72.0/22", "2c0f:f248::/32",
+    "141.101.64.0/18",
+    "162.158.0.0/15",
+    "172.64.0.0/13",
+    "173.245.48.0/20",
+    "188.114.96.0/20",
+    "190.93.240.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
     ])]
 
 SUBDOMAIN_MAP = {
     "www": "html/",
-    "168": "html/",  # local testing purposes
-    "127": "html/"
     }
 
 ALLOWED_FOLDERS = {

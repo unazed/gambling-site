@@ -11,9 +11,11 @@ $("#main_container").empty().append(
   <input type="password" id="input_password" class="form-control"
     placeholder="Password">
 </div>`);
+
 var email = $("#input_email");
 var password = $("#input_password");
 var button = $('<button type="submit" class="btn btn-secondary">Login</button>');
+
 $("#main_container").append(button);
 if ($$username) {
   email.prop("disabled", true);

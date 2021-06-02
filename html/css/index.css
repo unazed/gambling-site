@@ -54,12 +54,19 @@ div#chatbox {
   margin-top: 0.5em;
   padding: .375rem .75rem;
   overflow: auto;
+  height: inherit;
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+#chatbox-input {
+  margin-top: .25rem;
 }
 
 .chatbox-message {
   word-break: normal;
   margin-bottom: .375rem;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid #dee2e6!important;
 }
 
 .chatbox-message label {
@@ -106,4 +113,22 @@ div#chatbox {
   position: inherit!important;
   display: initial!important;
   box-shadow: none!important;
+}
+
+#user-list-container {
+  padding: 1em;
+  min-height: 3em;
+  max-height: 8em;
+  overflow: scroll;
+  display: flex;
+  flex-direction: column;
+}
+
+#user-list-container small {
+  margin-bottom: .5em;
+  text-align: center;
+}
+
+#user-list-container ul li {
+  background-color: inherit;
 }

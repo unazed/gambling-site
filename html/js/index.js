@@ -67,14 +67,22 @@ function add_message(message_obj) {
   }
 }
 
+function on_userlist_update(userlist) {
+  $("#user-list").empty();
+  for (const user of userlist['userlist'])
+  {
+    $("#user-list").append($("<li class='list-group-item'>").text(
+      user
+    )); 
+  }
+}
+
 function handle_ws_message(event) {
   let content = JSON.parse(event.data);
   if (content.error) {
     display_notif(content.error, "error");
   } else if (content.action === "do_load") {
-//    jQuery.globalEval(content.data);  /* is this shady? */
-    var fn = new Function(content.data);
-    fn();
+    jQuery.globalEval(content.data);  /* is this shady? */
   } else if (content.action === "registered") {
     sessionStorage.setItem("token", content.data.token);
     sessionStorage.setItem("username", content.data.username);
@@ -95,13 +103,13 @@ function handle_ws_message(event) {
     }));
   } else if (content.action === "on_message") {
     add_message(content.message);
-  } else if (content.action === "service_results") {
-    if (on_results !== undefined ) {
-      on_results(content.data);
-    }
   } else if (content.action === "profile_info") {
     if (on_profile !== undefined) {
       on_profile(content.data);
+    }
+  } else if (content.action === "userlist") {
+    if (on_userlist_update !== undefined) {
+      on_userlist_update(content);
     }
   } else if (content.warning) {
     display_notif(content.warning, "warning");
@@ -152,6 +160,7 @@ $(window).on("load", function() {
       name: "home"
     }));
     if (!is_mobile()) {
+      $("#nav-chatbox").parent().remove();
       $("#chatbox").removeClass("d-none").addClass("d-flex");
       ws.send(JSON.stringify({
         action: "initialize_chat"
@@ -169,6 +178,12 @@ $(window).on("load", function() {
         name: "navigation"
       }))
     }, 1000);
+    window.userlist_update = setInterval(function() {
+      ws.send(JSON.stringify({
+        action: "userlist_update"
+      }))
+    }, 500);
+
   }
 
   window.ws.onmessage = handle_ws_message;
@@ -179,10 +194,12 @@ $(window).on("load", function() {
       display_notif("closed websocket abruptly", "error");
     }
     clearInterval(window.nav_update);
+    clearInterval(window.userlist_update);
   }
 });
 
-$("#chatbox_input").on("keypress", function(e) {
+$("#chatbox-input").on("keypress", function(e) {
+  var msg;
   if (e.which == 13) {
     $(this).attr("disabled", "disabled");
     if (!(msg = $(this).val())) {
@@ -199,7 +216,7 @@ $("#chatbox_input").on("keypress", function(e) {
     $(this).val("");
     setTimeout(function(obj) {
       obj.removeAttr("disabled");
-      $("#chatbox_input:text:visible:first").focus()
+      $("#chatbox-input:text:visible:first").focus()
     }, 250, $(this));
   }
 });

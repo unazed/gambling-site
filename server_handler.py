@@ -14,8 +14,9 @@ import string
 import types
 import pprint
 
-from firebase_admin import credentials
-import firebase_admin
+import pyrebase
+pyrebase.pyrebase.raise_detailed_error = lambda *args, **kwargs: None
+# annoying
 
 import server_constants
 import server_utils
@@ -45,8 +46,7 @@ class GamblingSiteWebsocketClient:
         self.authentication = server.authentication = {}
         self.chat_initialized = False
 
-        self.tasks_scheduled = 0
-        self.tasks_overall = 0
+        self.last_pinged = {}
 
         self.__is_final = True
         self.__data_buffer = ""
@@ -159,6 +159,18 @@ class GamblingSiteWebsocketClient:
                     "action": "do_load",
                     "data": data
                 }))
+            elif action == "userlist_update":
+                userlist = list(map(
+                    lambda user: user['username'],
+                    server.firebase_db.child("users").order_by_child("username").get().val().values()
+                    ))
+                if self.authentication:
+                    self.last_pinged[self.authentication['username']] = time.time()
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "userlist",
+                    "userlist": userlist,
+                    "last_pinged": self.last_pinged
+                    }))
             elif action == "register":
                 if self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
@@ -166,13 +178,13 @@ class GamblingSiteWebsocketClient:
                     }))
                     return
                 elif not (res := server_utils.ensure_contains(
-                        self.trans, content, ("email", "password")
+                        self.trans, content, ("email", "username", "password")
                         )):
                     self.trans.write(self.packet_ctor.construct_response({
-                        "error": "either 'username' or 'password' wasn't passed"
+                        "error": "either 'username', 'email' or 'password' wasn't passed"
                     }))
                     return
-                username, password = res
+                email, username, password = res
                 if username in server.logins:
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
@@ -180,32 +192,66 @@ class GamblingSiteWebsocketClient:
                             server_constants.SUPPORTED_WS_EVENTS['register_fail'],
                             format={
                                 "$$object": "email",
-                                "$$reason": '"email exists"'
+                                "$$reason": '"userame exists"'
                             }
                         )
                     }))
                     return
-                elif not (4 < len(password) < 16):
+                elif not (2 <= len(password) <= 64):
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
                         "data": self.server.read_file(
                             server_constants.SUPPORTED_WS_EVENTS['register_fail'],
                             format={
                                 "$$object": "password",
-                                "$$reason": '"password must be between 5 and 15 characters"'
+                                "$$reason": '"password must be between 2 and 64 characters"'
                             }
                         )
                     }))
                     return
-                password = hashlib.sha224(password.encode()).digest()
+
+                auth_result = server.firebase_auth.create_user_with_email_and_password(email, password)
+                if (error_type := auth_result.get("error", {}).get("message", None)) is not None:
+                    response = "Error occurred during registration"
+                    if error_type == "INVALID_EMAIL":
+                        response = "Email field has invalid format"
+                    elif error_type == "EMAIL_EXISTS":
+                        response = "Email is already registered"
+                    else:
+                        print(error_type)
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['register_fail'],
+                            format={
+                                "$$object": "email",
+                                "$$reason": f'"{response}"'
+                            }
+                        )
+                    }))
+                    return
+                elif 'email' not in auth_result:
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "error": "Internal error"
+                    }))
+                    return
+
                 server.logins[username] = {
                     "registration_timestamp": time.strftime("%D %H:%M:%S"),
-                    "active_token": (tok := base64.b64encode(os.urandom(32)).decode()),
-                    "password": base64.b64encode(password).decode(),
-                    "rank": server_constants.DEFAULT_RANK
+                    "active_token": (tok := auth_result['idToken']),
+                    "rank": server_constants.DEFAULT_RANK,
+                    "email": email
                 }
+
+                db_ref = server.firebase_db.child("users").push({
+                    "username": username,
+                    "email": email,
+                    "xp": 0
+                })
+
                 self.authentication = {
                     "username": username,
+                    "email": email,
                     "token": tok,
                     "rank": server_constants.DEFAULT_RANK
                 }
@@ -247,8 +293,40 @@ class GamblingSiteWebsocketClient:
                     }))
                     return
                 elif (tok := content.get("token")):
-                    for user, data in server.logins.items():
-                        if data['active_token'] == tok:
+                    acc_info = server.firebase_auth.get_account_info(tok)
+                    
+                    if (error_type := acc_info.get("error", {}).get("message", None)) is not None:
+                        response = "Failed to login"
+                        if error_type == "USER_DISABLED":
+                            response = "Your account has been disabled"
+                        else:
+                            print(error_type)
+                        self.trans.write(self.packet_ctor.construct_response({
+                            "action": "do_load",
+                            "data": self.server.read_file(
+                                server_constants.SUPPORTED_WS_EVENTS['login_fail'],
+                                format={
+                                    "$$object": "null",
+                                    "$$reason": f'"{response}"'
+                                }
+                            )
+                        }))
+                        return
+                    elif (user := acc_info.get("users", (None,))[0]) is None:
+                        self.trans.write(self.packet_ctor.construct_response({
+                            "action": "do_load",
+                            "data": self.server.read_file(
+                                server_constants.SUPPORTED_WS_EVENTS['login_fail'],
+                                format={
+                                    "$$object": "null",
+                                    "$$reason": f'"Internal error with logging in"'
+                                }
+                            )
+                        }))
+                        return
+
+                    for username, userinfo in server.logins.items():
+                        if userinfo['email'] == user['email']:
                             break
                     else:
                         self.trans.write(self.packet_ctor.construct_response({
@@ -257,32 +335,33 @@ class GamblingSiteWebsocketClient:
                                 server_constants.SUPPORTED_WS_EVENTS['login_fail'],
                                 format={
                                     "$$object": "null",
-                                    "$$reason": '"no such token exists"'
+                                    "$$reason": f'"Internal error with logging in"'
                                 }
                             )
                         }))
                         return
+
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "login",
                         "data": {
-                            "username": user
+                            "username": username
                         }
                     }))
                     self.authentication = {
-                        "username": user,
+                        "username": username,
                         "token": tok,
-                        "rank": data['rank']
+                        "rank": userinfo['rank']
                     }
-                    print(f"{user!r} logged in via token")
+                    print(f"{username!r} logged in via token")
                     self.broadcast_message({
-                        "content": f"{user} has signed in (token)",
+                        "content": f"{username} has signed in (token)",
                         "properties": {
                             "font-weight": "600"
                         }
                     })
                     return
                 if not (res := server_utils.ensure_contains(
-                        self.trans, content, ("username", "password")
+                        self.trans, content, ("email", "password")
                         )):
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
@@ -290,27 +369,44 @@ class GamblingSiteWebsocketClient:
                             server_constants.SUPPORTED_WS_EVENTS['login_fail'],
                             format={
                                 "$$object": "null",
-                                "$$reason": '"either \'username\' or \'password\' wasn\'t passed"'
+                                "$$reason": '"either \'email\' or \'password\' wasn\'t passed"'
                             }
                         )
                     }))
                     return
-                username, password = res
-                if username not in self.server.logins:
+                email, password = res
+
+                login_info = server.firebase_auth.sign_in_with_email_and_password(email, password)
+                if (error_type := login_info.get("error", {}).get("message", None)) is not None:
+                    response = "Failed to login"
+                    object_ = "null"
+
+                    if error_type == "INVALID_PASSWORD":
+                        response = "Invalid password"
+                        object_ = "password"
+                    elif error_type == "EMAIL_NOT_FOUND":
+                        response = "Email not found"
+                        object_ = "email"
+                    elif error_type == "INVALID_EMAIL":
+                        response = "Invalid email format"
+                        object_ = "email"
+                    else:
+                        print(error_type)
+
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
                         "data": self.server.read_file(
                             server_constants.SUPPORTED_WS_EVENTS['login_fail'],
                             format={
-                                "$$object": "username",
-                                "$$reason": '"no such username exists"'
+                                "$$object": object_,
+                                "$$reason": f'"{response}"'
                             }
                         )
                     }))
                     return
-                password = base64.b64encode(hashlib.sha224(password.encode()).digest()).decode()
-                for user, data in self.server.logins.items():
-                    if data['password'] == password:
+                tok = login_info['idToken']
+                for username, userinfo in server.logins.items():
+                    if userinfo['email'] == email:
                         break
                 else:
                     self.trans.write(self.packet_ctor.construct_response({
@@ -318,8 +414,8 @@ class GamblingSiteWebsocketClient:
                         "data": self.server.read_file(
                             server_constants.SUPPORTED_WS_EVENTS['login_fail'],
                             format={
-                                "$$object": "password",
-                                "$$reason": '"password mismatch"'
+                                "$$object": "null",
+                                "$$reason": f'"Internal error while logging in"'
                             }
                         )
                     }))
@@ -329,13 +425,13 @@ class GamblingSiteWebsocketClient:
                     "action": "login",
                     "data": {
                         "username": username,
-                        "token": (tok := base64.b64encode(os.urandom(32)).decode())
+                        "token": tok
                     }
                 }))
                 self.authentication = {
                     "username": username,
                     "token": tok,
-                    "rank": data['rank']
+                    "rank": userinfo['rank']
                 }
                 self.server.logins[username].update({
                     "active_token": tok
@@ -430,17 +526,14 @@ class GamblingSiteWebsocketClient:
                         )
                     }))
                     return
+                elif not (username := server_utils.ensure_contains(
+                        self, content, ("username",)
+                        )):
+                    return
+                user_info = [*server.firebase_db.child("users").order_by_child("username").equal_to(username[0]).get().val().values()][0]
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "profile_info",
-                    "data": {
-                        "running_checks": self.tasks_scheduled,
-                        "completed_checks": self.tasks_overall,
-                        "rank_permissions":\
-                            server_constants.RANK_PROPERTIES[
-                                self.authentication['rank']
-                                ],
-                        **self.authentication
-                    }
+                    "data": user_info
                 }))
         else:
             print("received weird opcode, closing for inspection",
@@ -458,10 +551,11 @@ _print = print
 def print(*args, **kwargs):  # pylint: disable=redefined-builtin
     curframe = inspect.currentframe().f_back
     prev_fn = curframe.f_code.co_name
+    line_no = curframe.f_lineno
     class_name = ""
     if (inst := curframe.f_locals.get("self")) is not None:
         class_name = f" [{inst.__class__.__name__}]"
-    _print(f"[{time.strftime('%H:%M:%S')}] [ServerHandler]{class_name} [{prev_fn}]",
+    _print(f"[{time.strftime('%H:%M:%S')}] :{line_no} [ServerHandler]{class_name} [{prev_fn}]",
            *args, **kwargs)
 
 
@@ -479,7 +573,7 @@ def preinit_whitelist(server, addr):
 
 server = HttpsServer(
     root_directory="html/",
-    host="", port=8443,
+    host="0.0.0.0", port=8443,
     cert_chain=".ssl/gambling-site.crt",
     priv_key=".ssl/gambling-site.key",
     callbacks={
@@ -489,7 +583,7 @@ server = HttpsServer(
     )
 
 
-@server.route("GET", "/", subdomain="*")
+@server.route("GET", "/", subdomain=["www"])
 def index_handler(metadata):
     server.send_file(metadata, "index.html")
 
@@ -511,7 +605,7 @@ def pseudo_file(metadata, fid):
                 "Content-Disposition": f'filename="{fid}"'
             })
 
-@server.route("websocket", "/ws-gambling", subdomain="*")
+@server.route("websocket", "/ws-gambling", subdomain=["www"])
 def gambling_site_websocket_handler(headers, idx, extensions, prot, addr, data):
     print("registering new Gambling Site websocket transport")
     if idx not in server.clients:
@@ -595,7 +689,19 @@ server.clients = {}
 server.message_cache = []
 server.pseudo_files = {}
 
-firebase_admin.initialize_app(credentials.Certificate("firebase_key.json"))
-print("initialized Google Firebase")
+server.firebase = pyrebase.initialize_app({
+  "apiKey": "AIzaSyDFl6ewwUVBiG-tyU5nTPGQhYXupdTUd5I",
+  "authDomain": "gambling-site-c11d0.firebaseapp.com",
+  "storageBucket": "gambling-site-c11d0.appspot.com",
+  "databaseURL": "https://gambling-site-c11d0-default-rtdb.firebaseio.com/",
+  "serviceAccount": "firebase_key.json"
+})
+server.firebase_auth = server.firebase.auth()
+server.firebase_db = server.firebase.database()
 
-server.loop.run_until_complete(main_loop(server))
+print("initialized Google Firebase Authentication & Database")
+
+try:
+    server.loop.run_until_complete(main_loop(server))
+except KeyboardInterrupt:
+    print("exiting gracefully...")
