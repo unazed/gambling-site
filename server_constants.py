@@ -2,6 +2,7 @@ from ipaddress import ip_network
 from functools import partial
 import math
 
+
 def get_mimetype(name):
     return MIMETYPES.get(name.split(".")[-1], "text/plain")
 

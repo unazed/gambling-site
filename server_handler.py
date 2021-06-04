@@ -51,6 +51,15 @@ class GamblingSiteWebsocketClient:
         self.__is_final = True
         self.__data_buffer = ""
 
+    def get_user_by_firebase(self):
+        if not self.authentication:
+            return
+        return [*server.firebase_db                         \
+                .child("users")                             \
+                .order_by_child("username")                 \
+                .equal_to(self.authentication['username'])  \
+                .get().val().values()][0]
+
     def broadcast_message(self, message_obj):
         if not self.chat_initialized:
             return
@@ -299,6 +308,8 @@ class GamblingSiteWebsocketClient:
                         response = "Failed to login"
                         if error_type == "USER_DISABLED":
                             response = "Your account has been disabled"
+                        elif error_type == "INVALID_ID_TOKEN":
+                            response = "Your token has expired, relogin"
                         else:
                             print(error_type)
                         self.trans.write(self.packet_ctor.construct_response({
@@ -319,7 +330,7 @@ class GamblingSiteWebsocketClient:
                                 server_constants.SUPPORTED_WS_EVENTS['login_fail'],
                                 format={
                                     "$$object": "null",
-                                    "$$reason": f'"Internal error with logging in"'
+                                    "$$reason": '"Internal error with logging in"'
                                 }
                             )
                         }))
@@ -511,9 +522,23 @@ class GamblingSiteWebsocketClient:
                         }
                     }))
                     return
+                elif server_utils.is_filtered(message):
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "on_message",
+                        "message": {
+                            "username": "SYSTEM",
+                            "content": "filtered message",
+                            "properties": {
+                                "font-weight": "600"
+                            }
+                        }
+                    }))
+                    return
                 print(f"{self.authentication['username']}: {message!r}")
+                user_obj = self.get_user_by_firebase()
                 self.broadcast_message(obj := {
                     "username": self.authentication['username'],
+                    "level": server_utils.get_level(server_constants.LEVEL_INDICES, user_obj['xp']),
                     "content": message
                 })
                 self.server.message_cache.append(obj)
@@ -698,6 +723,14 @@ server.firebase = pyrebase.initialize_app({
 })
 server.firebase_auth = server.firebase.auth()
 server.firebase_db = server.firebase.database()
+
+userlist = server.firebase_db.child("users").get()
+print("userlist from Firebase:")
+for user in userlist.each():
+    user = user.val()
+    if user['username'] not in server.logins:
+        print(f"{user['username']!r} doesn't appear in local database, synchronization may be required")
+    print('--- ' + ', '.join(f"{attr}: {val!r}" for attr, val in user.items()))
 
 print("initialized Google Firebase Authentication & Database")
 

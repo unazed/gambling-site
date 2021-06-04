@@ -115,20 +115,21 @@ div#chatbox {
   box-shadow: none!important;
 }
 
-#user-list-container {
+.chat-subcontainer {
   padding: 1em;
   min-height: 3em;
   max-height: 8em;
   overflow: scroll;
   display: flex;
   flex-direction: column;
+  margin-top: .5em;
 }
 
-#user-list-container small {
+.chat-subcontainer small {
   margin-bottom: .5em;
   text-align: center;
 }
 
-#user-list-container ul li {
+.chat-subcontainer ul li {
   background-color: inherit;
 }

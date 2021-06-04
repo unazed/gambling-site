@@ -50,7 +50,14 @@ function display_notif(message, type) {
 
 window.display_notif = display_notif;
 
+var last_clicked_user = null;
+
+function display_user_info(user_info) {
+  $("user-info").empty().removeClass("d-none").append(user_info.username);
+}
+
 function add_message(message_obj) {
+  console.log(message_obj);
   var prev_msg = $(".message-content")[0];
   var label_obj = $("<label></label>").addClass("message-content");
   $("#chatbox-messages").prepend(
@@ -61,6 +68,19 @@ function add_message(message_obj) {
           (message_obj.content)
       )
     ).css(message_obj.properties === undefined? {}: message_obj.properties)
+     .click(function() {
+       if (!message_obj.username)
+       {
+         return;
+       } else if (last_clicked_user === message_obj.username)
+       {
+         $("#user-info-container").addClass("d-none");
+       } else
+       {
+         last_clicked_user = message_obj.username;
+         display_user_info(message_obj);
+       }
+     })
   );
   if (prev_msg !== undefined && prev_msg.textContent.startsWith(message_obj.username + ":")) {
     label_obj.parent().addClass("border-0");
@@ -71,9 +91,18 @@ function on_userlist_update(userlist) {
   $("#user-list").empty();
   for (const user of userlist['userlist'])
   {
+    time_since = "unavailable";
+    if (userlist['last_pinged'][user] !== undefined)
+    {
+      time_since = "last available " + (
+        ( ( (+new Date/1000 - userlist['last_pinged'][user])*10 ) >> 0 ) / 10
+      ).toString() + "s ago";
+    }
     $("#user-list").append($("<li class='list-group-item'>").text(
       user
-    )); 
+    ), $("<label class='form-text text-muted'>").text(
+      time_since
+    ))
   }
 }
 
