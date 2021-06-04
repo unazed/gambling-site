@@ -110,6 +110,8 @@ for _level in range(1 + MAX_LEVEL):
     _level_xp_acc += math.ceil(_level / 10) * 100
     LEVEL_INDICES.append(_level_xp_acc)
 
+SENSITIVE_USER_KEYS = ["email"]
+
 WHITELISTED_RANGES = [*map(ip_network, [
     "103.21.244.0/22", "2400:cb00::/32",
     "103.22.200.0/22", "2606:4700::/32",

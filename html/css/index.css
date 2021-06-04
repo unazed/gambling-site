@@ -125,6 +125,23 @@ div#chatbox {
   margin-top: .5em;
 }
 
+#user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+#user-info-container {
+  margin-left: .5em;
+}
+
+#chat-info-container {
+  display: flex;
+}
+
+#user-list-container {
+  flex-grow: 1;
+}
+
 .chat-subcontainer small {
   margin-bottom: .5em;
   text-align: center;

@@ -50,10 +50,27 @@ function display_notif(message, type) {
 
 window.display_notif = display_notif;
 
+function on_public_profile(user) {
+  console.log("on_public_profile", user);
+}
+
 var last_clicked_user = null;
 
 function display_user_info(user_info) {
-  $("user-info").empty().removeClass("d-none").append(user_info.username);
+  $("#user-info-container").removeClass("d-none");
+  $("#user-info").empty().append(
+    $("<label>").text("Username: " + user_info.username),
+    $("<label>").text("XP: " + user_info.xp_count + ", "
+                    + "Level: " + user_info.level),
+    $("<a class='link-primary'>").text("View profile").click(function() {
+      window.ws.send(JSON.stringify({
+        action: "profile_info",
+        username: user_info.username
+      }))
+    }).css({
+        "text-align": "center"
+      })
+  );
 }
 
 function add_message(message_obj) {
@@ -74,9 +91,12 @@ function add_message(message_obj) {
          return;
        } else if (last_clicked_user === message_obj.username)
        {
+         console.log("closing container");
          $("#user-info-container").addClass("d-none");
+         last_clicked_user = null;
        } else
        {
+         console.log("showing user");
          last_clicked_user = message_obj.username;
          display_user_info(message_obj);
        }
@@ -133,11 +153,13 @@ function handle_ws_message(event) {
   } else if (content.action === "on_message") {
     add_message(content.message);
   } else if (content.action === "profile_info") {
-    if (on_profile !== undefined) {
+    if (typeof on_profile !== "undefined") {
       on_profile(content.data);
+    } else {
+      on_public_profile(content.data);
     }
   } else if (content.action === "userlist") {
-    if (on_userlist_update !== undefined) {
+    if (typeof on_userlist_update !== "undefined") {
       on_userlist_update(content);
     }
   } else if (content.warning) {

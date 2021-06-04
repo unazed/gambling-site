@@ -51,13 +51,14 @@ class GamblingSiteWebsocketClient:
         self.__is_final = True
         self.__data_buffer = ""
 
-    def get_user_by_firebase(self):
+    def get_user_by_firebase(self, username=None):
         if not self.authentication:
             return
         return [*server.firebase_db                         \
                 .child("users")                             \
                 .order_by_child("username")                 \
-                .equal_to(self.authentication['username'])  \
+                .equal_to(username or                       \
+                    self.authentication['username'])        \
                 .get().val().values()][0]
 
     def broadcast_message(self, message_obj):
@@ -539,6 +540,7 @@ class GamblingSiteWebsocketClient:
                 self.broadcast_message(obj := {
                     "username": self.authentication['username'],
                     "level": server_utils.get_level(server_constants.LEVEL_INDICES, user_obj['xp']),
+                    "xp_count": user_obj['xp'],
                     "content": message
                 })
                 self.server.message_cache.append(obj)
@@ -555,10 +557,16 @@ class GamblingSiteWebsocketClient:
                         self, content, ("username",)
                         )):
                     return
-                user_info = [*server.firebase_db.child("users").order_by_child("username").equal_to(username[0]).get().val().values()][0]
+                user_info = self.get_user_by_firebase(username[0])
+                if user_info['username'] != self.authentication['username']:
+                    for sensitive_key in server_constants.SENSITIVE_USER_KEYS:
+                        del user_info[sensitive_key]
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "profile_info",
-                    "data": user_info
+                    "data": {
+                        "level": server_utils.get_level(server_constants.LEVEL_INDICES, user_info['xp']),
+                        **user_info
+                        }
                 }))
         else:
             print("received weird opcode, closing for inspection",
