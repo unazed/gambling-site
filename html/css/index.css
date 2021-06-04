@@ -132,6 +132,8 @@ div#chatbox {
 
 #user-info-container {
   margin-left: .5em;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 #chat-info-container {
@@ -140,6 +142,7 @@ div#chatbox {
 
 #user-list-container {
   flex-grow: 1;
+  overflow-x: hidden;
 }
 
 .chat-subcontainer small {

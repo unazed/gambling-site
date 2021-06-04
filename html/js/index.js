@@ -109,6 +109,11 @@ function add_message(message_obj) {
 
 function on_userlist_update(userlist) {
   $("#user-list").empty();
+  if (!userlist['userlist'].length)
+  {
+    $("#user-list").append($("<li class='list-group-item'>").text("no users registered"));
+    return;
+  }
   for (const user of userlist['userlist'])
   {
     time_since = "unavailable";

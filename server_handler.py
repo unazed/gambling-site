@@ -170,10 +170,14 @@ class GamblingSiteWebsocketClient:
                     "data": data
                 }))
             elif action == "userlist_update":
-                userlist = list(map(
-                    lambda user: user['username'],
-                    server.firebase_db.child("users").order_by_child("username").get().val().values()
-                    ))
+                users = server.firebase_db.child("users").order_by_child("username").get().val()
+                if users is None:
+                    userlist = []
+                else:
+                    userlist = list(map(
+                        lambda user: user['username'],
+                        users.values()
+                        ))
                 if self.authentication:
                     self.last_pinged[self.authentication['username']] = time.time()
                 self.trans.write(self.packet_ctor.construct_response({
@@ -201,8 +205,8 @@ class GamblingSiteWebsocketClient:
                         "data": self.server.read_file(
                             server_constants.SUPPORTED_WS_EVENTS['register_fail'],
                             format={
-                                "$$object": "email",
-                                "$$reason": '"userame exists"'
+                                "$$object": "username",
+                                "$$reason": '"username exists"'
                             }
                         )
                     }))
@@ -256,7 +260,9 @@ class GamblingSiteWebsocketClient:
                 db_ref = server.firebase_db.child("users").push({
                     "username": username,
                     "email": email,
-                    "xp": 0
+                    "xp": 0,
+                    "deposits": {0: 0},
+                    "withdrawals": {0: 0}
                 })
 
                 self.authentication = {
@@ -732,13 +738,16 @@ server.firebase = pyrebase.initialize_app({
 server.firebase_auth = server.firebase.auth()
 server.firebase_db = server.firebase.database()
 
-userlist = server.firebase_db.child("users").get()
+userlist = server.firebase_db.child("users").get().each()
 print("userlist from Firebase:")
-for user in userlist.each():
-    user = user.val()
-    if user['username'] not in server.logins:
-        print(f"{user['username']!r} doesn't appear in local database, synchronization may be required")
-    print('--- ' + ', '.join(f"{attr}: {val!r}" for attr, val in user.items()))
+if userlist is not None:
+    for user in userlist:
+        user = user.val()
+        if user['username'] not in server.logins:
+            print(f"{user['username']!r} doesn't appear in local database, synchronization may be required")
+        print('--- ' + ', '.join(f"{attr}: {val!r}" for attr, val in user.items()))
+else:
+    print("-- empty")
 
 print("initialized Google Firebase Authentication & Database")
 
