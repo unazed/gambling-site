@@ -1,10 +1,15 @@
 from html import escape
+import cryptocompare
 import json
 from server_api.websocket_interface import WebsocketPacket
 
 
 with open("filtered-words.txt") as filtered:
     filtered = [*map(str.strip, filtered)]
+
+
+def get_crypto_prices(markets):
+    return cryptocompare.get_price(markets, currency='USD')
 
 
 def ensure_contains(self, data, keys):

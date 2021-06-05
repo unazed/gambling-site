@@ -15,6 +15,7 @@ import string
 import types
 import pprint
 
+from coinbase_commerce.client import Client
 import pyrebase
 pyrebase.pyrebase.raise_detailed_error = lambda *args, **kwargs: None
 # annoying
@@ -199,7 +200,7 @@ class GamblingSiteWebsocketClient:
                 markets = markets[0]
 
                 user_obj = self.get_user_by_firebase()
-                deposits, withdrawals = user_obj['deposits'], user_obj['withdrawals']
+                deposits, withdrawals = user_obj.get('deposits', []), user_obj.get('withdrawals', [])
 
                 deposit_volume = 0
                 per_market_deposit_sum = Counter()
@@ -208,6 +209,12 @@ class GamblingSiteWebsocketClient:
                 withdraw_volume = 0
                 per_market_withdrawal_sum = Counter()
                 per_market_withdrawals = defaultdict(list)
+
+                market_prices = server_utils.get_crypto_prices(markets)
+
+                for market in markets:
+                    per_market_withdrawal_sum[market] = 0
+                    per_market_deposit_sum[market] = 0
 
                 for timestamp, market, amount in deposits:
                     if market not in markets:
@@ -229,21 +236,22 @@ class GamblingSiteWebsocketClient:
                         "amount": amount
                         })
 
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "action": "load_wallet",
-                        "data": {
-                            "withdraw": {
-                                "net-volume": withdraw_volume,
-                                "per-market-volume": dict(per_market_withdrawal_sum),
-                                "transactions": dict(per_market_withdrawals)
-                                },
-                            "deposit": {
-                                "net-volume": deposit_volume,
-                                "per-market-volume": dict(per_market_deposit_sum),
-                                "transactions": dict(per_market_deposits)
-                                }
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "load_wallet",
+                    "data": {
+                        "market_prices": market_prices,
+                        "withdraw": {
+                            "net-volume": withdraw_volume,
+                            "per-market-volume": dict(per_market_withdrawal_sum),
+                            "transactions": dict(per_market_withdrawals)
+                            },
+                        "deposit": {
+                            "net-volume": deposit_volume,
+                            "per-market-volume": dict(per_market_deposit_sum),
+                            "transactions": dict(per_market_deposits)
                             }
-                        }))
+                        }
+                    }))
             elif action == "register":
                 if self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
@@ -320,8 +328,6 @@ class GamblingSiteWebsocketClient:
                     "username": username,
                     "email": email,
                     "xp": 0,
-                    "deposits": [[time.time(), "bitcoin", 0]],
-                    "withdrawals": [[time.time(), "bitcoin", 0]]
                 })
 
                 self.authentication = {
