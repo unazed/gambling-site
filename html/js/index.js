@@ -51,7 +51,6 @@ function display_notif(message, type) {
 window.display_notif = display_notif;
 
 function on_public_profile(user) {
-  console.log("on_public_profile", user);
 }
 
 var last_clicked_user = null;
@@ -74,7 +73,6 @@ function display_user_info(user_info) {
 }
 
 function add_message(message_obj) {
-  console.log(message_obj);
   var prev_msg = $(".message-content")[0];
   var label_obj = $("<label></label>").addClass("message-content");
   $("#chatbox-messages").prepend(
@@ -91,12 +89,10 @@ function add_message(message_obj) {
          return;
        } else if (last_clicked_user === message_obj.username)
        {
-         console.log("closing container");
          $("#user-info-container").addClass("d-none");
          last_clicked_user = null;
        } else
        {
-         console.log("showing user");
          last_clicked_user = message_obj.username;
          display_user_info(message_obj);
        }
@@ -166,6 +162,10 @@ function handle_ws_message(event) {
   } else if (content.action === "userlist") {
     if (typeof on_userlist_update !== "undefined") {
       on_userlist_update(content);
+    }
+  } else if (content.action === "load_wallet") {
+    if (typeof on_wallet !== "undefined") {
+      on_wallet(content.data);
     }
   } else if (content.warning) {
     display_notif(content.warning, "warning");

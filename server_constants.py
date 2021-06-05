@@ -51,18 +51,12 @@ SUPPORTED_WS_ACTIONS = [
     "initialize_chat",
     "send_message",
     "profile_info",
-    "userlist_update"
+    "userlist_update",
+    "load_wallet"
 ]
-
-SUPPORTED_REGISTRAR_ACTIONS = [
-    "login", "register", "list-servers",
-    "remove-server", "ping"
-]
-
-SUPPORTED_SERVICES = ("tiktok", "twitch.tv", "snapchat")
 
 SUPPORTED_WS_EVENTS = {
-    # Tirami events
+    # Gambling events
     "home": "events/home.js",
     "service/*": service_item,
     "profile/*": retrieve_profile,
@@ -75,6 +69,7 @@ SUPPORTED_WS_EVENTS = {
     "forbidden": "events/forbidden.js",
     "chatbox": "events/chatbox.js",
     "notify": "events/notify.js",
+    "wallet": when_authenticated("wallet.js", True),
     "show_profile": when_authenticated("show_profile.js", True),
     "service_notify": when_authenticated("service_notify.js", True),
 }

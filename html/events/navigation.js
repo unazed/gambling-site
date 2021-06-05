@@ -9,6 +9,14 @@ if ($$username && !$("a#nav-username").get().length) {
     )
   ).append(
     $("<li></li>").addClass("nav-item").append(
+      $("<a></a>").addClass("nav-link").text("wallet").attr({
+        id: "nav-wallet",
+        href: "#",
+        name: "wallet"
+      })
+    )
+  ).append(
+    $("<li></li>").addClass("nav-item").append(
       $("<a></a>").addClass("nav-link").text("logout").attr({
         id: "nav-logout",
         href: "#",
@@ -21,6 +29,8 @@ if ($$username && !$("a#nav-username").get().length) {
 } else if (!$$username && (nav = $("a#nav-username")).get().length) {
   nav.parent().remove();
   $("a#nav-logout").parent().remove();
+  $("a#nav-wallet").parent().remove();
+
   $("#nav-login").parent().show();
   $("#nav-register").parent().show();
   display_notif("logged out", "info");

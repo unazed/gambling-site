@@ -153,3 +153,20 @@ div#chatbox {
 .chat-subcontainer ul li {
   background-color: inherit;
 }
+
+#wallet-container {
+  display: flex;
+  align-items: center;
+  height: 4em;
+  margin-bottom: .75em!important;
+}
+
+#wallet, #wallet-action {
+  flex-grow: 1;
+  text-align: center;
+}
+
+#wallet-action {
+  border-left: 1px solid #dee2e6!important;
+  padding-left: 1em;
+}

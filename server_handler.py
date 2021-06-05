@@ -1,8 +1,9 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 from html import escape
 from secrets import token_urlsafe
 import asyncio
 import base64
+import datetime
 import hashlib
 import time
 import inspect
@@ -185,6 +186,64 @@ class GamblingSiteWebsocketClient:
                     "userlist": userlist,
                     "last_pinged": self.last_pinged
                     }))
+            elif action == "load_wallet":
+                if not self.authentication:
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "error": "you must be logged in to access your wallet"
+                    }))
+                    return
+                elif not (markets := server_utils.ensure_contains(
+                        self, content, ("markets",)
+                        )):
+                    return
+                markets = markets[0]
+
+                user_obj = self.get_user_by_firebase()
+                deposits, withdrawals = user_obj['deposits'], user_obj['withdrawals']
+
+                deposit_volume = 0
+                per_market_deposit_sum = Counter()
+                per_market_deposits = defaultdict(list)
+
+                withdraw_volume = 0
+                per_market_withdrawal_sum = Counter()
+                per_market_withdrawals = defaultdict(list)
+
+                for timestamp, market, amount in deposits:
+                    if market not in markets:
+                        continue
+                    per_market_deposit_sum[market] += amount
+                    deposit_volume += amount
+                    per_market_deposits[market].append({
+                        "timestamp": datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S'),
+                        "amount": amount
+                        })
+
+                for timestamp, market, amount in withdrawals:
+                    if market not in markets:
+                        continue
+                    per_market_withdrawal_sum[market] += amount
+                    withdraw_volume += amount
+                    per_market_withdrawals[market].append({
+                        "timestamp": datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S'),
+                        "amount": amount
+                        })
+
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "load_wallet",
+                        "data": {
+                            "withdraw": {
+                                "net-volume": withdraw_volume,
+                                "per-market-volume": dict(per_market_withdrawal_sum),
+                                "transactions": dict(per_market_withdrawals)
+                                },
+                            "deposit": {
+                                "net-volume": deposit_volume,
+                                "per-market-volume": dict(per_market_deposit_sum),
+                                "transactions": dict(per_market_deposits)
+                                }
+                            }
+                        }))
             elif action == "register":
                 if self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
@@ -192,7 +251,7 @@ class GamblingSiteWebsocketClient:
                     }))
                     return
                 elif not (res := server_utils.ensure_contains(
-                        self.trans, content, ("email", "username", "password")
+                        self, content, ("email", "username", "password")
                         )):
                     self.trans.write(self.packet_ctor.construct_response({
                         "error": "either 'username', 'email' or 'password' wasn't passed"
@@ -261,8 +320,8 @@ class GamblingSiteWebsocketClient:
                     "username": username,
                     "email": email,
                     "xp": 0,
-                    "deposits": {0: 0},
-                    "withdrawals": {0: 0}
+                    "deposits": [[time.time(), "bitcoin", 0]],
+                    "withdrawals": [[time.time(), "bitcoin", 0]]
                 })
 
                 self.authentication = {
@@ -379,7 +438,7 @@ class GamblingSiteWebsocketClient:
                     })
                     return
                 if not (res := server_utils.ensure_contains(
-                        self.trans, content, ("email", "password")
+                        self, content, ("email", "password")
                         )):
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
