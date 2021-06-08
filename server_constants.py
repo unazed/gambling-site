@@ -52,8 +52,11 @@ SUPPORTED_WS_ACTIONS = [
     "send_message",
     "profile_info",
     "userlist_update",
-    "load_wallet"
+    "load_wallet",
+    "create_transaction"
 ]
+
+SUPPORTED_CURRENCIES = ["bitcoin", "ethereum"]
 
 SUPPORTED_WS_EVENTS = {
     # Gambling events

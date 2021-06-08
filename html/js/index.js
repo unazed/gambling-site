@@ -112,18 +112,24 @@ function on_userlist_update(userlist) {
   }
   for (const user of userlist['userlist'])
   {
-    time_since = "unavailable";
+    time_since = "offline";
     if (userlist['last_pinged'][user] !== undefined)
     {
-      time_since = "last available " + (
-        ( ( (+new Date/1000 - userlist['last_pinged'][user])*10 ) >> 0 ) / 10
-      ).toString() + "s ago";
+      secs_ago = ( ( (+new Date/1000 - userlist['last_pinged'][user])*10 ) >> 0 ) / 10;
+      if (secs_ago === 0)
+      {
+        time_since = "online";
+      } else
+      {
+        time_since = "last available " + secs_ago.toString() + "s ago";
+      }
     }
     $("#user-list").append($("<li class='list-group-item'>").text(
       user
-    ), $("<label class='form-text text-muted'>").text(
+    ).append($("<span class='form-text text-muted'>").text(
       time_since
-    ))
+      ).css({"margin-left": ".75rem"})
+    ));
   }
 }
 
@@ -222,9 +228,14 @@ $(window).on("load", function() {
         action: "initialize_chat"
       }));
       add_message({
-        "content": "initialized chat",
+        "content": "welcome to pots.bet, you can talk with others " +
+                   "here. please refrain from any profanity, treat" +
+                   " others with respect, and have fun.",
         "properties": {
-          "font-weight": "600"
+          "font-weight": "600",
+//          "border": "2px solid #dee2e6",
+          "padding": ".75rem",
+          "margin-bottom": "auto"
           }
         });
     }
@@ -238,7 +249,7 @@ $(window).on("load", function() {
       ws.send(JSON.stringify({
         action: "userlist_update"
       }))
-    }, 500);
+    }, 5000);
 
   }
 

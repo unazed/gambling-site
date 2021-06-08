@@ -12,6 +12,14 @@ def get_crypto_prices(markets):
     return cryptocompare.get_price(markets, currency='USD')
 
 
+def crypto_to_usd(amount, crypto):
+    if crypto == "bitcoin":
+        crypto = "BTC"
+    elif crypto == "ethereum":
+        crypto = "ETH"
+    return get_crypto_prices([crypto])[crypto]['USD']
+
+
 def ensure_contains(self, data, keys):
     ret = []
     for key in keys:

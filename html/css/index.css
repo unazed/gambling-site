@@ -117,17 +117,22 @@ div#chatbox {
 
 .chat-subcontainer {
   padding: 1em;
-  min-height: 3em;
-  max-height: 8em;
+  min-height: 8em;
+  max-height: 15em;
   overflow: scroll;
   display: flex;
   flex-direction: column;
-  margin-top: .5em;
+  margin: .5em;
 }
 
 #user-info {
   display: flex;
   flex-direction: column;
+  height: 100%;
+}
+
+#user-info a {
+  margin-top: auto;
 }
 
 #user-info-container {
@@ -156,32 +161,55 @@ div#chatbox {
 
 #wallet {
   display: flex;
-  align-items: center;
   min-height: 4em;
+  align-items: center;
   margin-bottom: .75em!important;
   flex-direction: column;
+  padding: .5rem;
+  text-align: center;
+  min-width: 17em;
 }
 
 #wallet-container {
-  display: flex;
   align-items: center;
 }
 
 #wallet-info {
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
 }
 
 #wallet-info span {
   text-align: left;
 }
 
-#wallet, #wallet-action {
-  flex-grow: 1;
-  text-align: center;
-}
-
 #wallet-action {
   padding-left: 1em;
+  flex-grow: 1;
+}
+
+#wallet-action-form {
+  flex-grow: 1;
+}
+
+#wallet-action-container {
+  display: flex;
+  flex-direction: column;
+}
+
+#process-btn {
+  float: right;
+}
+
+#wallet-ext-container {
+  height: 100%;
+  height: -moz-available;       
+  height: -webkit-fill-available;
+  height: fill-available;
+  position: relative;
+  width: auto;
+}
+
+.mobile-friendly-container {
+  height: 61em!important;
 }

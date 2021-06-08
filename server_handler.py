@@ -15,10 +15,9 @@ import string
 import types
 import pprint
 
-from coinbase_commerce.client import Client
+from coinbase_commerce.client import Client as CoinbaseClient
 import pyrebase
 pyrebase.pyrebase.raise_detailed_error = lambda *args, **kwargs: None
-# annoying
 
 import server_constants
 import server_utils
@@ -47,8 +46,6 @@ class GamblingSiteWebsocketClient:
 
         self.authentication = server.authentication = {}
         self.chat_initialized = False
-
-        self.last_pinged = {}
 
         self.__is_final = True
         self.__data_buffer = ""
@@ -181,11 +178,11 @@ class GamblingSiteWebsocketClient:
                         users.values()
                         ))
                 if self.authentication:
-                    self.last_pinged[self.authentication['username']] = time.time()
+                    server.last_pinged[self.authentication['username']] = time.time()
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "userlist",
                     "userlist": userlist,
-                    "last_pinged": self.last_pinged
+                    "last_pinged": server.last_pinged
                     }))
             elif action == "load_wallet":
                 if not self.authentication:
@@ -239,6 +236,7 @@ class GamblingSiteWebsocketClient:
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "load_wallet",
                     "data": {
+                        "cleared": user_obj['cleared'],
                         "market_prices": market_prices,
                         "withdraw": {
                             "net-volume": withdraw_volume,
@@ -327,6 +325,9 @@ class GamblingSiteWebsocketClient:
                 db_ref = server.firebase_db.child("users").push({
                     "username": username,
                     "email": email,
+#                   "transactions": [],
+#                   "deposits": [],
+                    "cleared": 0,
                     "xp": 0,
                 })
 
@@ -437,7 +438,7 @@ class GamblingSiteWebsocketClient:
                     }
                     print(f"{username!r} logged in via token")
                     self.broadcast_message({
-                        "content": f"{username} has signed in (token)",
+                        "content": f"{username} has come online",
                         "properties": {
                             "font-weight": "600"
                         }
@@ -615,6 +616,101 @@ class GamblingSiteWebsocketClient:
                     "content": message
                 })
                 self.server.message_cache.append(obj)
+            elif action == "create_transaction":
+                if not self.authentication:
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.send_file(
+                            server_constants.SUPPORTED_WS_EVENTS['forbidden']
+                        )
+                    }))
+                    return
+                elif not (content := server_utils.ensure_contains(
+                        self, content, ("type", "currency", "receive_address", "amount")
+                        )):
+                    pass
+                type_, currency, recv_addr, amount = content
+
+                try:
+                    amount = float(amount)
+                except ValueError:
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['notify'],
+                            format={
+                                "$$reason": "deposit/withdrawal amount must be decimal",
+                                "$$type": "error"
+                            }
+                        )
+                    }))
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": server.read_file(server_constants.SUPPORTED_WS_EVENTS['wallet'])
+                    }))
+                    return
+
+                if currency not in server_constants.SUPPORTED_CURRENCIES:
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['notify'],
+                            format={
+                                "$$reason": "only BTC/ETH is supported",
+                                "$$type": "error"
+                            }
+                        )
+                    }))
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": server.read_file(server_constants.SUPPORTED_WS_EVENTS['wallet'])
+                    }))
+                    return
+
+                if type_ == "withdrawal":
+                    # ...
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['notify'],
+                            format={
+                                "$$reason": "server confirmed withdrawal request, check profile for status",
+                                "$$type": "success"
+                            }
+                        )
+                    }))
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['home'],
+                            format={
+                                "$$username": f'"{self.authentication["username"]}"',
+                                "$$auth_token": f'"{self.authentication["token"]}"'
+                                }
+                            )
+                    }))
+                    return
+                elif type_ == "deposit":
+                    charge = server.coinbase_client.charge.create(name=f'{currency} deposit',
+                            description=f'Deposit of {amount!r} {currency}',
+                            pricing_type='fixed_price',
+                            local_price={
+                                "amount": amount * server_utils.crypto_to_usd(amount, currency),
+                                "currency": "USD"
+                                })
+                    print(charge)
+                    print("creating charge for $", server_utils.crypto_to_usd(amount, currency))
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['notify'],
+                            format={
+                                "$$reason": "server created deposit charge",
+                                "$$type": "success"
+                            }
+                        )
+                    }))
+
             elif action == "profile_info":
                 if not self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
@@ -789,7 +885,16 @@ with open("logins.db") as logins:
         print("failed to load 'logins.db'")
         server.logins = {}
 
+if not os.path.isfile("keys/coinbase-commerce.key"):
+    raise IOError("Coinbase Commerce key doesn't exist")
+
+with open("keys/coinbase-commerce.key") as cb_key:
+    server.coinbase_client = CoinbaseClient(api_key=cb_key.read().strip())
+    event_list = server.coinbase_client.event.list()
+    print(f"initialized Coinbase Commerce client, {len(event_list)} events pending")
+
 server.clients = {}
+server.last_pinged = {}
 server.message_cache = []
 server.pseudo_files = {}
 
@@ -798,7 +903,7 @@ server.firebase = pyrebase.initialize_app({
   "authDomain": "gambling-site-c11d0.firebaseapp.com",
   "storageBucket": "gambling-site-c11d0.appspot.com",
   "databaseURL": "https://gambling-site-c11d0-default-rtdb.firebaseio.com/",
-  "serviceAccount": "firebase_key.json"
+  "serviceAccount": "keys/firebase_key.json"
 })
 server.firebase_auth = server.firebase.auth()
 server.firebase_db = server.firebase.database()

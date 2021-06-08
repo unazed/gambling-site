@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "gambling-site-c11d0",
+  "private_key_id": "f8910fde31acc6e8e88586f22581c221a4823070",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC+fPI5+ngTmYBj\nRPTXjMdqe8IywYENBA8AHL+aLu2uEm3y2zw3c3H2Xfha/fF4DQhZSBy0Jh27tvKT\niu46Gp9RTIHC0Jr1elhR6DfDuo9lb2afc6O2VfLFpgs2tAnXys9tJw8neLm+kwLI\noV2pWgQL0V06ojxD/KLUEZRIKIWISgxMjxPqaFrBqCWIQbRsKjOBufspleuUcoUv\nhyCeR1A2ARJ4wpMO5VNpaBdZJTYO68h/ijLsnH/9bh9mMiuOB9gT96ELkwVtRr9u\nvhiQzgSAlx48YmA1CjjLeTnGzgFmHF5zlahVu3SBPSr1W3iY6zjGoJ1rOteZ9hk8\nbmm11irrAgMBAAECggEAHINTt2BUWKFe/uejpfTRervDUgP1/w6ZojYra0xVUSY6\nuqHyDbN5nluVi8/m35tFIdFx/niVdcjeND3qXTHT9tWMDNmwgEh2b5g3af8DF4yz\ny0VXfuO29GU02NTdLlBneRq3dtHoLRcQpnBvtnmeERjJ1YzS7DL6Oo0rvsYAqul3\nACnVwLnh3Dd0AUjlDwiNDOglji9c0BUCuysXcuCoJTpIhndaJofugiHnxOyf8lS2\n757CPv7YRloiyS7ENMzTc14+2sy/56LxIvicfk6smh+MiK3BHebENw7Vr0tiHQz8\nx7eUiscPvj3cUS8ELOp8Xi1ES+0+7ZuFAMbWkAQa2QKBgQDrsB4ULAn3QablGoOO\nl6eE2DsWl1FNMKBtnD1ef+RWsJAczOu0okr0bpkgX3zU5HT51iqSkzT+/Lp21k8r\n/0p04zlgAWySE6uZb5kzoe55byNiXss9qmNZ6SPYNpV3jCzoRQ8G1/39h9O+Xnso\nWvfAuolAauThwSFBZAO5GJmvowKBgQDO55pZyGhroXpshDbZ9z7/2l+I6r7Gfzny\nccNt1lc9ThI5Ps/1gC+lHJwWmp9MDQGCuc4EXX/B9/Y9TW1GzZDSUPeJyl5CxB84\nBdKYpas33q/Chdw5zEqVH43WoLmXXLkPSH7NyxUWNcmDcJjsDkymXSWn8dnrfZiM\nl+pQQwwsGQKBgQC2l8Il1Jx/71/yPKFRVlKVC8RzUxXMnHCdmp682I45Tx7HAUdW\nsSkqx4hgWTnn4XpymCZxWhSDu55mNNAvgN/ZQLSRmWjYnt6hx6DELJ8Jez3JlzET\n/C5uWL3JYzhW3sVnySDEJ5AB3DoCUUZO1HL+4EU3H9lkwPAXrflobBOcywKBgAYR\nYMN1Tyqo57A7CGjICX7zZo3bZJDptkdX8sVL3e8cVQh8wRiQE9WhyyoWisluMDcn\nP9V88Hw9y2js1mGXMcIZQck2uCD5I3k/Inf7k9Plof3wcw724NESxdQfjpHT1FGQ\nbLeYVxv5o9lI+hMiMDlIzgvo2d1AJ7Mn2WVVMgwxAoGBAKfZcGK4S3RyyO65x10M\nz1yLJihrPH+P/bPu4TvBmHdyIFOliLPENjhHqQs3mhQitXUR7SrIyYEJiWV26xl0\nbPfFvWVJ9Tf6PPSL2UbHkjsE8Kp8eJYnIwVnuhJ6ryzp908dPJQGNm6+qJT1urlp\nybDI4KwjrEUwh8t6BzJgkAPK\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fczu1@gambling-site-c11d0.iam.gserviceaccount.com",
+  "client_id": "103343121832326603749",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fczu1%40gambling-site-c11d0.iam.gserviceaccount.com"
+}
