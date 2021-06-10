@@ -53,9 +53,9 @@ class GamblingSiteWebsocketClient:
         self.__data_buffer = ""
 
     def set_user_by_firebase(self, data, username=None):
-        server.firebase_db.child("users").order_by_child("username")\
-                          .equal_to(username or self.authentication['username']\
-                
+        server.firebase_db.child("users").order_by_child("username")                \
+                          .equal_to(username or self.authentication['username'])    \
+                          .update(data)
 
     def get_user_by_firebase(self, username=None):
         return [*server.firebase_db                         \
