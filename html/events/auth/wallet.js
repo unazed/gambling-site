@@ -1,5 +1,6 @@
 reset_state();
 
+window.check_confirmation = {};
 var is_confirmed = false;
 
 function on_wallet(wallet_info) {
@@ -195,6 +196,7 @@ function on_wallet(wallet_info) {
       display_notif("withdrawal request has been submitted, waiting for server confirmation...", "success")
     } else /* deposit state */
     {
+      $("#rx-tx-amount").prop("disabled", true);
       window.ws.send(JSON.stringify({
         action: "create_transaction",
         type: "deposit",
@@ -202,9 +204,30 @@ function on_wallet(wallet_info) {
         receive_address: address,
         amount: amount
       }));
-      display_notif("deposit request has been submitted, waiting for server confirmation...", "success")
+      display_notif("deposit request has been submitted, waiting for server confirmation...", "info")
     }
   });
+}
+
+function on_transaction_event(content)
+{
+  if (content.state === "completed")
+  {
+    clearInterval(window.check_confirmation[content.id]);
+  }
+}
+
+function on_transaction_created(content)
+{
+  $("#rx-tx-address").val(content.address);
+  $("#rx-tx-amount").val(content.amount.amount);
+
+  window.check_confirmation[content.id] = setInterval(function() {
+    window.ws.send(JSON.stringify({
+      "action": "check_transaction",
+      "id": content.id
+    }));
+  }, 1000);
 }
 
 $("#main_container").empty().append(

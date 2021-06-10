@@ -45,14 +45,19 @@ class GamblingSiteWebsocketClient:
         self.packet_ctor = WebsocketPacket(None, self.comp)
 
         self.authentication = server.authentication = {}
+        self.transactions = {}
+
         self.chat_initialized = False
 
         self.__is_final = True
         self.__data_buffer = ""
 
+    def set_user_by_firebase(self, data, username=None):
+        server.firebase_db.child("users").order_by_child("username")\
+                          .equal_to(username or self.authentication['username']\
+                
+
     def get_user_by_firebase(self, username=None):
-        if not self.authentication:
-            return
         return [*server.firebase_db                         \
                 .child("users")                             \
                 .order_by_child("username")                 \
@@ -695,10 +700,10 @@ class GamblingSiteWebsocketClient:
                             description=f'Deposit of {amount!r} {currency}',
                             pricing_type='fixed_price',
                             local_price={
-                                "amount": amount * server_utils.crypto_to_usd(amount, currency),
+                                "amount": server_utils.crypto_to_usd(amount, currency),
                                 "currency": "USD"
                                 })
-                    print(charge)
+                    s
                     print("creating charge for $", server_utils.crypto_to_usd(amount, currency))
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
@@ -710,7 +715,43 @@ class GamblingSiteWebsocketClient:
                             }
                         )
                     }))
-
+                    self.transactions[charge['id']] = charge
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "create_transaction",
+                        "data": {
+                            "id": charge['id'],
+                            "address": charge['addresses'][currency],
+                            "amount": charge['pricing'][currency]
+                            }
+                        }))
+            elif action == "check_transaction":
+                if not self.authentication:
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.send_file(
+                            server_constants.SUPPORTED_WS_EVENTS['forbidden']
+                        )
+                    }))
+                    return
+                elif not (tx_id := server_utils.ensure_contains(
+                        self, content, ("id",)
+                        )):
+                    return
+                tx_id = tx_id[0]
+                charge = server.coinbase_client.charge.retrieve(tx_id)
+                state = 0   # 0: WAITING, 1: PENDING, 2: COMPLETED
+                for event in charge['timeline']:
+                    if event['status'] == "PENDING":
+                        state = max(1, state)
+                    elif event['status'] == "COMPLETED":
+                        state = max(2, state)
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "check_transaction",
+                    "data": {
+                        "id": tx_id,
+                        "state": ("waiting", "pending confirmations", "completed")[state]
+                        }
+                    }))
             elif action == "profile_info":
                 if not self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
@@ -890,8 +931,7 @@ if not os.path.isfile("keys/coinbase-commerce.key"):
 
 with open("keys/coinbase-commerce.key") as cb_key:
     server.coinbase_client = CoinbaseClient(api_key=cb_key.read().strip())
-    event_list = server.coinbase_client.event.list()
-    print(f"initialized Coinbase Commerce client, {len(event_list)} events pending")
+    print("initialized Coinbase Commerce client")
 
 server.clients = {}
 server.last_pinged = {}

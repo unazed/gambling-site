@@ -17,7 +17,7 @@ def crypto_to_usd(amount, crypto):
         crypto = "BTC"
     elif crypto == "ethereum":
         crypto = "ETH"
-    return get_crypto_prices([crypto])[crypto]['USD']
+    return amount * get_crypto_prices([crypto])[crypto]['USD']
 
 
 def ensure_contains(self, data, keys):

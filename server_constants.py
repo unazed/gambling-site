@@ -53,7 +53,8 @@ SUPPORTED_WS_ACTIONS = [
     "profile_info",
     "userlist_update",
     "load_wallet",
-    "create_transaction"
+    "create_transaction",
+    "check_transaction"
 ]
 
 SUPPORTED_CURRENCIES = ["bitcoin", "ethereum"]

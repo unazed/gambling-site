@@ -173,6 +173,14 @@ function handle_ws_message(event) {
     if (typeof on_wallet !== "undefined") {
       on_wallet(content.data);
     }
+  } else if (content.action === "create_transaction") {
+    if (typeof on_transaction_created !== "undefined") {
+      on_transaction_created(content.data);
+    }
+  } else if (content.action === "check_transaction") {
+    if (typeof on_transaction_event !== "undefined") {
+      on_transaction_event(content.data);
+    }
   } else if (content.warning) {
     display_notif(content.warning, "warning");
   }
