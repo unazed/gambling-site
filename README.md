@@ -1,3 +1,3 @@
-# tirami.net
-enhanced small-http-server backend for https://tirami.net/
 # gambling-site
+
+improved tirami.net for gambling
