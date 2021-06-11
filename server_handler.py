@@ -48,14 +48,19 @@ class GamblingSiteWebsocketClient:
         self.transactions = {}
 
         self.chat_initialized = False
+        self.is_recaptcha_verified = False
 
         self.__is_final = True
         self.__data_buffer = ""
 
-    def set_user_by_firebase(self, data, username=None):
-        server.firebase_db.child("users").order_by_child("username")                \
-                          .equal_to(username or self.authentication['username'])    \
-                          .update(data)
+    def add_user_deposit(self, charge):
+        server.firebase_db.child("deposits").child(self.authentication['username'])\
+                          .child(charge['id']).set({
+                              "pricing": charge['pricing'],
+                              "addresses": charge['addresses'],
+                              "expires_at": charge['expires_at'],
+                              "created_at": charge['created_at']
+                            })
 
     def get_user_by_firebase(self, username=None):
         return [*server.firebase_db                         \
@@ -173,6 +178,26 @@ class GamblingSiteWebsocketClient:
                     "action": "do_load",
                     "data": data
                 }))
+            elif action == "verify_recaptcha":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be authenticated to use reCAPTCHA"
+                    }))
+                elif not (token := server_utils.ensure_contains(
+                        self, content, ("token",)
+                        )):
+                    return
+                token = token[0]
+                score = server_utils.get_recaptcha_response(server.recaptcha_privkey, token)['score']
+                print(score)
+                if score < server_constants.RECAPTCHA_MIN_SCORE:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                            "error": "failed reCAPTCHA v3 verification"
+                        }))
+                self.trans.write(self.packet_ctor.construct_response({
+                        "success": "reCAPTCHA v3 succeeded"
+                    }))
+                self.is_recaptcha_verified = True
             elif action == "userlist_update":
                 users = server.firebase_db.child("users").order_by_child("username").get().val()
                 if users is None:
@@ -625,7 +650,7 @@ class GamblingSiteWebsocketClient:
                 if not self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
-                        "data": self.server.send_file(
+                        "data": self.server.read_file(
                             server_constants.SUPPORTED_WS_EVENTS['forbidden']
                         )
                     }))
@@ -634,6 +659,11 @@ class GamblingSiteWebsocketClient:
                         self, content, ("type", "currency", "receive_address", "amount")
                         )):
                     pass
+                elif not self.is_recaptcha_verified:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "reCAPTCHA v3 not succeeded"
+                        }))
+                self.is_recaptcha_verified = False
                 type_, currency, recv_addr, amount = content
 
                 try:
@@ -673,7 +703,7 @@ class GamblingSiteWebsocketClient:
                     return
 
                 if type_ == "withdrawal":
-                    # ...
+                    self.add_user_withdrawal(content)
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
                         "data": self.server.read_file(
@@ -703,7 +733,7 @@ class GamblingSiteWebsocketClient:
                                 "amount": server_utils.crypto_to_usd(amount, currency),
                                 "currency": "USD"
                                 })
-                    s
+                    self.add_user_deposit(charge)
                     print("creating charge for $", server_utils.crypto_to_usd(amount, currency))
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
@@ -728,7 +758,7 @@ class GamblingSiteWebsocketClient:
                 if not self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
-                        "data": self.server.send_file(
+                        "data": self.server.read_file(
                             server_constants.SUPPORTED_WS_EVENTS['forbidden']
                         )
                     }))
@@ -745,6 +775,8 @@ class GamblingSiteWebsocketClient:
                         state = max(1, state)
                     elif event['status'] == "COMPLETED":
                         state = max(2, state)
+                if state == 2:
+
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "check_transaction",
                     "data": {
@@ -756,7 +788,7 @@ class GamblingSiteWebsocketClient:
                 if not self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
-                        "data": self.server.send_file(
+                        "data": self.server.read_file(
                             server_constants.SUPPORTED_WS_EVENTS['forbidden']
                         )
                     }))
@@ -932,6 +964,13 @@ if not os.path.isfile("keys/coinbase-commerce.key"):
 with open("keys/coinbase-commerce.key") as cb_key:
     server.coinbase_client = CoinbaseClient(api_key=cb_key.read().strip())
     print("initialized Coinbase Commerce client")
+
+if not os.path.isfile("keys/recaptcha-v3.key"):
+    raise IOError("reCAPTCHA v3 key doesn't exist")
+
+with open("keys/recaptcha-v3.key") as captcha_key:
+    server.recaptcha_privkey = captcha_key.read().strip()
+    print("loaded reCAPTCHA v3 key")
 
 server.clients = {}
 server.last_pinged = {}

@@ -54,8 +54,11 @@ SUPPORTED_WS_ACTIONS = [
     "userlist_update",
     "load_wallet",
     "create_transaction",
-    "check_transaction"
+    "check_transaction",
+    "verify_recaptcha"
 ]
+
+RECAPTCHA_MIN_SCORE = 0.5
 
 SUPPORTED_CURRENCIES = ["bitcoin", "ethereum"]
 

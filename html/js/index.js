@@ -183,7 +183,10 @@ function handle_ws_message(event) {
     }
   } else if (content.warning) {
     display_notif(content.warning, "warning");
+  } else if (content.success) {
+    display_notif(content.success, "success");
   }
+
   $(".nav-link").each(function(idx, elem) {
     $(elem).off("click");
     $(elem).click(function() {

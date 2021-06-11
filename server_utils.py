@@ -1,6 +1,7 @@
 from html import escape
 import cryptocompare
 import json
+import requests
 from server_api.websocket_interface import WebsocketPacket
 
 
@@ -10,6 +11,13 @@ with open("filtered-words.txt") as filtered:
 
 def get_crypto_prices(markets):
     return cryptocompare.get_price(markets, currency='USD')
+
+
+def get_recaptcha_response(recaptcha_privkey, token):
+    return requests.post("https://www.google.com/recaptcha/api/siteverify", data={
+        "secret": recaptcha_privkey,
+        "response": token
+        }).json()
 
 
 def crypto_to_usd(amount, crypto):

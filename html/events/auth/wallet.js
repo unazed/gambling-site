@@ -125,7 +125,9 @@ function on_wallet(wallet_info) {
   </label>
 </div>
 <br>
-<button type="button" class="btn btn-outline-success mt-2" id="process-btn">Process</button>
+<button type="button" class="btn btn-outline-success mt-2" id="process-btn">
+  Process
+</button>
 `);
   }  /* is_mobile() */
 
@@ -162,50 +164,61 @@ function on_wallet(wallet_info) {
   });
 
   $("#process-btn").click(function() {
-    address = $("#rx-tx-address").val();
-    amount = $("#rx-tx-amount").val();
+    $("#process-btn").prop("disabled", true);
+    grecaptcha.ready(function() {
+      grecaptcha.execute('6LclcyUbAAAAALvjjxT5jPnnm4AXDYcJzeI6ZrNS', {action: "submit"}).then(function(tok) {
+        window.ws.send(JSON.stringify({
+          action: "verify_recaptcha",
+          token: tok
+        }));
+        setTimeout(function() {
+          address = $("#rx-tx-address").val();
+          amount = $("#rx-tx-amount").val();
 
-    if (!address && is_withdraw_state)
-    {
-      $("#rx-tx-address").addClass("is-invalid");
-      return;
-    } else if (!amount)
-    {
-      $("#rx-tx-amount").addClass("is-invalid");
-      return;
-    }
+          if (!address && is_withdraw_state)
+          {
+            $("#rx-tx-address").addClass("is-invalid");
+            return;
+          } else if (!amount)
+          {
+            $("#rx-tx-amount").addClass("is-invalid");
+            return;
+          }
 
-    if (is_withdraw_state)
-    {
-      if (!is_confirmed)
-      {
-        display_notif("double check your receiving address, and process when you're certain it's the right address", "info");
-        $("#process-btn").prop("disabled", true);
-        setTimeout(function(){ $("#process-btn").prop("disabled", false); }, 1000);
-        is_confirmed = true;
-        return;
-      }
-      $("#process-btn").prop("disabled", true);
-      window.ws.send(JSON.stringify({
-        action: "create_transaction",
-        type: "withdrawal",
-        currency: is_bitcoin_state? "bitcoin": "ethereum",
-        receive_address: address,
-        amount: amount
-      }));
-      display_notif("withdrawal request has been submitted, waiting for server confirmation...", "success")
-    } else /* deposit state */
-    {
-      $("#rx-tx-amount").prop("disabled", true);
-      window.ws.send(JSON.stringify({
-        action: "create_transaction",
-        type: "deposit",
-        currency: is_bitcoin_state? "bitcoin": "ethereum",
-        receive_address: address,
-        amount: amount
-      }));
-      display_notif("deposit request has been submitted, waiting for server confirmation...", "info")
-    }
+          if (is_withdraw_state)
+          {
+            if (!is_confirmed)
+            {
+              display_notif("double check your receiving address, and process when you're certain it's the right address", "info");
+              $("#process-btn").prop("disabled", true);
+              setTimeout(function(){ $("#process-btn").prop("disabled", false); }, 1000);
+              is_confirmed = true;
+              return;
+            }
+            $("#process-btn").prop("disabled", true);
+            window.ws.send(JSON.stringify({
+              action: "create_transaction",
+              type: "withdrawal",
+              currency: is_bitcoin_state? "bitcoin": "ethereum",
+              receive_address: address,
+              amount: amount
+            }));
+            display_notif("withdrawal request has been submitted, waiting for server confirmation...", "success")
+          } else /* deposit state */
+          {
+            $("#rx-tx-amount").prop("disabled", true);
+            window.ws.send(JSON.stringify({
+              action: "create_transaction",
+              type: "deposit",
+              currency: is_bitcoin_state? "bitcoin": "ethereum",
+              receive_address: address,
+              amount: amount
+            }));
+            display_notif("deposit request has been submitted, waiting for server confirmation...", "info")
+          }
+        }, 1000);
+      });
+    });
   });
 }
 
