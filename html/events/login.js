@@ -27,11 +27,22 @@ if ($$username) {
   }, 2000);
 } else {
   $(button).click(function() {
-    window.ws.send(JSON.stringify({
-      action: "login",
-      email: email.val(),
-      password: password.val()
-    }));
+    grecaptcha.ready(function() {
+      grecaptcha.execute('6LclcyUbAAAAALvjjxT5jPnnm4AXDYcJzeI6ZrNS', {action: 'submit'}).then(function(tok) {
+        window.ws.send(JSON.stringify({
+          action: "verify_recaptcha",
+          token: tok
+        }));
+        setTimeout(function() {
+          window.ws.send(JSON.stringify({
+            action: "login",
+            email: email.val(),
+            password: password.val()
+          }));
+        }, 1000);
+      });
+    });
+
     email.prop("disabled", true);
     password.prop("disabled", true);
   });

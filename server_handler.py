@@ -179,11 +179,7 @@ class GamblingSiteWebsocketClient:
                     "data": data
                 }))
             elif action == "verify_recaptcha":
-                if not self.authentication:
-                    return self.trans.write(self.packet_ctor.construct_response({
-                        "error": "must be authenticated to use reCAPTCHA"
-                    }))
-                elif not (token := server_utils.ensure_contains(
+                if not (token := server_utils.ensure_contains(
                         self, content, ("token",)
                         )):
                     return
@@ -289,10 +285,14 @@ class GamblingSiteWebsocketClient:
                 elif not (res := server_utils.ensure_contains(
                         self, content, ("email", "username", "password")
                         )):
-                    self.trans.write(self.packet_ctor.construct_response({
+                    return self.trans.write(self.packet_ctor.construct_response({
                         "error": "either 'username', 'email' or 'password' wasn't passed"
                     }))
-                    return
+                elif not self.is_recaptcha_verified:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "reCAPTCHA v3 failed for register"
+                    }))
+                self.is_recaptcha_verified = False
                 email, username, password = res
                 if username in server.logins:
                     self.trans.write(self.packet_ctor.construct_response({
@@ -404,7 +404,13 @@ class GamblingSiteWebsocketClient:
                         )
                     }))
                     return
-                elif (tok := content.get("token")):
+                elif not self.is_recaptcha_verified:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "reCAPTCHA v3 failed for login"
+                    }))
+                self.is_recaptcha_verified = False
+
+                if (tok := content.get("token")):
                     acc_info = server.firebase_auth.get_account_info(tok)
                     
                     if (error_type := acc_info.get("error", {}).get("message", None)) is not None:
@@ -775,7 +781,9 @@ class GamblingSiteWebsocketClient:
                         state = max(1, state)
                     elif event['status'] == "COMPLETED":
                         state = max(2, state)
+                
                 if state == 2:
+                    " todo"
 
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "check_transaction",
