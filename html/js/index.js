@@ -223,10 +223,20 @@ $(window).on("load", function() {
   window.ws.onopen = function() {
     var token = window.sessionStorage['token'];
     if (token) {
-      ws.send(JSON.stringify({
-        action: "login",
-        token: token
-      }))
+      grecaptcha.ready(function () {
+        grecaptcha.execute('6LclcyUbAAAAALvjjxT5jPnnm4AXDYcJzeI6ZrNS', {action: 'submit'}).then(function(tok) {
+          ws.send(JSON.stringify({
+            action: "verify_recaptcha",
+            token: tok
+          }));
+          setTimeout(function() {
+            ws.send(JSON.stringify({
+              action: "login",
+              token: token
+            }));
+          }, 1000);
+        });
+      });
     }
     ws.send(JSON.stringify({
       action: "event_handler",

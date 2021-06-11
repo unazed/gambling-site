@@ -185,7 +185,6 @@ class GamblingSiteWebsocketClient:
                     return
                 token = token[0]
                 score = server_utils.get_recaptcha_response(server.recaptcha_privkey, token)['score']
-                print(score)
                 if score < server_constants.RECAPTCHA_MIN_SCORE:
                     return self.trans.write(self.packet_ctor.construct_response({
                             "error": "failed reCAPTCHA v3 verification"
