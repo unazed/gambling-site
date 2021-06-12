@@ -151,7 +151,6 @@ class GamblingSiteWebsocketClient:
             print("finished receiving, length =", len(data['data']))
 
         if data['opcode'] == 0x08:
-            print(data)
             self.trans.write(self.packet_ctor.construct_response(data=b"", opcode=0x08))
             return self.trans.close()
         elif data['opcode'] == 0x0A:
@@ -354,7 +353,7 @@ class GamblingSiteWebsocketClient:
                 self.is_recaptcha_verified = False
                 email, username, password = res
                 if username in server.logins:
-                    self.trans.write(self.packet_ctor.construct_response({
+                    return self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
                         "data": self.server.read_file(
                             server_constants.SUPPORTED_WS_EVENTS['register_fail'],
@@ -364,7 +363,6 @@ class GamblingSiteWebsocketClient:
                             }
                         )
                     }))
-                    return
                 elif not (2 <= len(password) <= 64):
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
@@ -377,6 +375,17 @@ class GamblingSiteWebsocketClient:
                         )
                     }))
                     return
+                elif not username.strip():
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['register_fail'],
+                            format={
+                                "$$object": "username",
+                                "$$reason": '"username can\'t be empty"'
+                            }
+                        )
+                    }))
 
                 auth_result = server.firebase_auth.create_user_with_email_and_password(email, password)
                 if (error_type := auth_result.get("error", {}).get("message", None)) is not None:
@@ -1087,8 +1096,6 @@ server.firebase = pyrebase.initialize_app({
 })
 server.firebase_auth = server.firebase.auth()
 server.firebase_db = server.firebase.database()
-
-print(f"level indices: {server_constants.LEVEL_INDICES}")
 
 userlist = server.firebase_db.child("users").get().each()
 print("userlist from Firebase:")
