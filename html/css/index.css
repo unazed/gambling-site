@@ -211,5 +211,21 @@ div#chatbox {
 }
 
 .mobile-friendly-container {
-  height: 61em!important;
+  height: 86em!important;
+}
+
+#wallet-transactions {
+  display: flex;
+  max-height: 24em;
+  overflow: auto;
+}
+
+#wallet-deposits {
+  flex-grow: 1;
+  overflow: auto;
+}
+
+#wallet-withdrawals {
+  flex-grow: 1;
+  overflow: auto;
 }

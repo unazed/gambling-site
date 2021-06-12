@@ -55,10 +55,12 @@ SUPPORTED_WS_ACTIONS = [
     "load_wallet",
     "create_transaction",
     "check_transaction",
+    "load_transactions",
     "verify_recaptcha"
 ]
 
 RECAPTCHA_MIN_SCORE = 0.5
+XP_MULTIPLIER = 2.5
 
 SUPPORTED_CURRENCIES = ["bitcoin", "ethereum"]
 

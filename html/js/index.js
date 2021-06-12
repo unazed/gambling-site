@@ -126,9 +126,13 @@ function on_userlist_update(userlist) {
     }
     $("#user-list").append($("<li class='list-group-item'>").text(
       user
-    ).append($("<span class='form-text text-muted'>").text(
+    ).append($("<span class='form-text'>").text(
       time_since
-      ).css({"margin-left": ".75rem"})
+      ).css(
+        (time_since == "online")
+        ? {"margin-left": ".75rem", "color": "#28a745"}
+        : {"margin-left": ".75rem", "color": "#343a4088"}
+      )
     ));
   }
 }
@@ -180,6 +184,10 @@ function handle_ws_message(event) {
   } else if (content.action === "check_transaction") {
     if (typeof on_transaction_event !== "undefined") {
       on_transaction_event(content.data);
+    }
+  } else if (content.action === "load_transactions") { 
+    if (typeof on_transactions_loaded !== "undefined") {
+      on_transactions_loaded(content.data);
     }
   } else if (content.warning) {
     display_notif(content.warning, "warning");
@@ -248,17 +256,17 @@ $(window).on("load", function() {
       ws.send(JSON.stringify({
         action: "initialize_chat"
       }));
-      add_message({
+/*      add_message({
         "content": "welcome to pots.bet, you can talk with others " +
                    "here. please refrain from any profanity, treat" +
                    " others with respect, and have fun.",
         "properties": {
           "font-weight": "600",
-//          "border": "2px solid #dee2e6",
+          "border": "2px solid #dee2e6",
           "padding": ".75rem",
           "margin-bottom": "auto"
           }
-        });
+        }); */
     }
     window.nav_update = setInterval(function() {
       ws.send(JSON.stringify({

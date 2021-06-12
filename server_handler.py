@@ -45,7 +45,6 @@ class GamblingSiteWebsocketClient:
         self.packet_ctor = WebsocketPacket(None, self.comp)
 
         self.authentication = server.authentication = {}
-        self.transactions = {}
 
         self.chat_initialized = False
         self.is_recaptcha_verified = False
@@ -53,14 +52,54 @@ class GamblingSiteWebsocketClient:
         self.__is_final = True
         self.__data_buffer = ""
 
+    def add_user_withdrawal(self, charge):
+        _, currency, address, amount = charge
+        print(f"creating withdrawal for '{amount} {currency}' {type(amount)}")
+        server.firebase_db.child("withdrawals").child(self.authentication['username']) \
+                          .push({
+                            "address": address,
+                            "currency": currency,
+                            "local_amount": round(server_utils.crypto_to_usd(float(amount), currency), 2),
+                            "created_at": datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+                            })
+
     def add_user_deposit(self, charge):
-        server.firebase_db.child("deposits").child(self.authentication['username'])\
+        server.firebase_db.child("deposits").child(self.authentication['username']) \
                           .child(charge['id']).set({
                               "pricing": charge['pricing'],
                               "addresses": charge['addresses'],
                               "expires_at": charge['expires_at'],
-                              "created_at": charge['created_at']
+                              "created_at": datetime.datetime.fromtimestamp(
+                                  datetime.datetime.strptime(charge['created_at'], "%Y-%m-%dT%H:%M:%SZ").timestamp()
+                                  ).strftime('%Y-%m-%d %H:%M:%S'),
+                              "requested_currency": charge['requested_currency'],
+                              "validated": False
                             })
+
+    def validate_deposit(self, id_, username=None):
+        server.firebase_db.child("deposits").child(username \
+                or self.authentication['username']).child(id_).update({
+                    "validated": True
+                    })
+
+    def get_deposit(self, id_, username=None):
+        return server.firebase_db.child("deposits").child(username  \
+                or self.authentication['username']).child(id_).get().val()
+
+    def get_deposits(self, username=None):
+        return server.firebase_db.child("deposits").child(username  \
+                or self.authentication['username']).get().val()
+
+    def get_withdrawals(self, username=None):
+        return server.firebase_db.child("withdrawals").child(username  \
+                or self.authentication['username']).get().val()
+
+    def update_user_by_firebase(self, data, username=None):
+        userkey = [*server.firebase_db.child("users").order_by_child("username")              \
+                                      .equal_to(username or self.authentication['username'])  \
+                                      .get().val().keys()][0]
+        print("user key", userkey)
+        server.firebase_db.child("users").child(userkey).update(data)
 
     def get_user_by_firebase(self, username=None):
         return [*server.firebase_db                         \
@@ -189,10 +228,19 @@ class GamblingSiteWebsocketClient:
                     return self.trans.write(self.packet_ctor.construct_response({
                             "error": "failed reCAPTCHA v3 verification"
                         }))
-                self.trans.write(self.packet_ctor.construct_response({
-                        "success": "reCAPTCHA v3 succeeded"
-                    }))
                 self.is_recaptcha_verified = True
+            elif action == "load_transactions":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                            "error": "must be authenticated to load transactions"
+                        }))
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "load_transactions",
+                    "data": {
+                        "deposits": self.get_deposits(),
+                        "withdrawals": self.get_withdrawals()
+                        }
+                    }))
             elif action == "userlist_update":
                 users = server.firebase_db.child("users").order_by_child("username").get().val()
                 if users is None:
@@ -221,8 +269,8 @@ class GamblingSiteWebsocketClient:
                     return
                 markets = markets[0]
 
-                user_obj = self.get_user_by_firebase()
-                deposits, withdrawals = user_obj.get('deposits', []), user_obj.get('withdrawals', [])
+                deposits = self.get_deposits() or {}
+                withdrawals = self.get_withdrawals() or {}
 
                 deposit_volume = 0
                 per_market_deposit_sum = Counter()
@@ -232,29 +280,37 @@ class GamblingSiteWebsocketClient:
                 per_market_withdrawal_sum = Counter()
                 per_market_withdrawals = defaultdict(list)
 
-                market_prices = server_utils.get_crypto_prices(markets)
+                market_prices = server_utils.get_crypto_prices(markets.copy())
+
+                user_obj = self.get_user_by_firebase()
 
                 for market in markets:
                     per_market_withdrawal_sum[market] = 0
                     per_market_deposit_sum[market] = 0
 
-                for timestamp, market, amount in deposits:
+                for deposit in deposits.values():
+                    if not deposit['validated']:
+                        continue
+                    market = deposit['requested_currency']
                     if market not in markets:
                         continue
+                    amount = float(deposit['pricing'][market]['amount'])
                     per_market_deposit_sum[market] += amount
                     deposit_volume += amount
                     per_market_deposits[market].append({
-                        "timestamp": datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S'),
+                        "timestamp": deposit['created_at'],
                         "amount": amount
                         })
 
-                for timestamp, market, amount in withdrawals:
+                for withdrawal in withdrawals.values():
+                    market = withdrawal['requested_currency']
                     if market not in markets:
                         continue
+                    amount = float(withdrawal['pricing'][market]['amount'])
                     per_market_withdrawal_sum[market] += amount
                     withdraw_volume += amount
                     per_market_withdrawals[market].append({
-                        "timestamp": datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S'),
+                        "timestamp": withdrawal['created_at'],
                         "amount": amount
                         })
 
@@ -708,36 +764,33 @@ class GamblingSiteWebsocketClient:
                     return
 
                 if type_ == "withdrawal":
+                    cleared_amount = self.get_user_by_firebase()['cleared']
+                    if amount > cleared_amount:
+                        return self.trans.write(self.packet_ctor.construct_response({
+                            "error": "not enough cleared funds to withdraw this amount"
+                            }))
                     self.add_user_withdrawal(content)
                     self.trans.write(self.packet_ctor.construct_response({
-                        "action": "do_load",
-                        "data": self.server.read_file(
-                            server_constants.SUPPORTED_WS_EVENTS['notify'],
-                            format={
-                                "$$reason": "server confirmed withdrawal request, check profile for status",
-                                "$$type": "success"
-                            }
-                        )
+                        "success": "server confirmed withdrawal request, check profile for status"
                     }))
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
-                        "data": server.read_file(
-                            server_constants.SUPPORTED_WS_EVENTS['home'],
-                            format={
-                                "$$username": f'"{self.authentication["username"]}"',
-                                "$$auth_token": f'"{self.authentication["token"]}"'
-                                }
-                            )
+                        "data": server.read_file(server_constants.SUPPORTED_WS_EVENTS['wallet'])
                     }))
-                    return
                 elif type_ == "deposit":
-                    charge = server.coinbase_client.charge.create(name=f'{currency} deposit',
+                    try:
+                        charge = server.coinbase_client.charge.create(name=f'{currency} deposit',
                             description=f'Deposit of {amount!r} {currency}',
                             pricing_type='fixed_price',
                             local_price={
                                 "amount": server_utils.crypto_to_usd(amount, currency),
                                 "currency": "USD"
                                 })
+                    except coinbase_commerce.error.InvalidRequestError:
+                        return self.trans.write(self.packet_ctor.construct_response({
+                                "error": "value must be worth more than $0 USD"
+                            }))
+                    charge.update({"requested_currency": currency})
                     self.add_user_deposit(charge)
                     print("creating charge for $", server_utils.crypto_to_usd(amount, currency))
                     self.trans.write(self.packet_ctor.construct_response({
@@ -750,7 +803,6 @@ class GamblingSiteWebsocketClient:
                             }
                         )
                     }))
-                    self.transactions[charge['id']] = charge
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "create_transaction",
                         "data": {
@@ -773,21 +825,59 @@ class GamblingSiteWebsocketClient:
                         )):
                     return
                 tx_id = tx_id[0]
+
+                local_charge = self.get_deposit(tx_id)
+                
+                if local_charge is not None and local_charge['validated']:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "action": "check_transaction",
+                        "data": {
+                            "id": tx_id,
+                            "pricing": local_charge['pricing'][local_charge['requested_currency']],
+                            "state": "completed"
+                            }
+                        }))
+
                 charge = server.coinbase_client.charge.retrieve(tx_id)
+
                 state = 0   # 0: WAITING, 1: PENDING, 2: COMPLETED
                 for event in charge['timeline']:
-                    if event['status'] == "PENDING":
+                    if event['status'] == "UNRESOLVED":
+                        if event['context'] == "OVERPAID":
+                            return self.trans.write(self.packet_ctor.construct_response({
+                                "action": "check_transaction",
+                                "data": {
+                                    "id": tx_id,
+                                    "pricing": charge['pricing'][charge['description'].split()[-1]],
+                                    "state": "overpaid"
+                                    }
+                                }))
+                    elif event['status'] == "PENDING":
                         state = max(1, state)
                     elif event['status'] == "COMPLETED":
+                        if event['status'] == "OVERPAID":
+                            self.trans.write(self.packet_ctor.construct_response({
+                                    "warning": "deposit id: {tx_id[:5]}... overpaid"
+                                }))
                         state = max(2, state)
                 
                 if state == 2:
-                    " todo"
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "success": f"deposit id: {tx_id[:5]}... has been accredited to your account"
+                        }))
+                    amount_deposited = float(charge['pricing']['local']['amount'])
+                    xp_gained = server_constants.XP_MULTIPLIER * amount_deposited
+                    user_obj = self.get_user_by_firebase()
+                    self.update_user_by_firebase({
+                            "xp": user_obj['xp'] + xp_gained
+                        })
+                    self.validate_deposit(tx_id)
 
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "check_transaction",
                     "data": {
                         "id": tx_id,
+                        "pricing": charge['pricing'][charge['description'].split()[-1]],
                         "state": ("waiting", "pending confirmations", "completed")[state]
                         }
                     }))

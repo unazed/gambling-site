@@ -10,6 +10,11 @@ with open("filtered-words.txt") as filtered:
 
 
 def get_crypto_prices(markets):
+    for idx, market in enumerate(markets):
+        if market == "bitcoin":
+            markets[idx] = "btc"
+        elif market == "ethereum":
+            markets[idx] = "eth"
     return cryptocompare.get_price(markets, currency='USD')
 
 
