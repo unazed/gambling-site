@@ -151,11 +151,11 @@ class GamblingSiteWebsocketClient:
             print("finished receiving, length =", len(data['data']))
 
         if data['opcode'] == 0x08:
-            print("received close frame")
-            self.trans.close()
-            return
+            print(data)
+            self.trans.write(self.packet_ctor.construct_response(data=b"", opcode=0x08))
+            return self.trans.close()
         elif data['opcode'] == 0x0A:
-            return print("received PONG frame")
+            return
         elif data['opcode'] == 0x01:
             try:
                 content = json.loads(data['data'])
@@ -220,7 +220,6 @@ class GamblingSiteWebsocketClient:
                     "data": data
                 }))
             elif action == "ping":
-                print("sending PING frame")
                 return self.trans.write(self.packet_ctor.construct_response(data=b"", opcode=0x09))
             elif action == "verify_recaptcha":
                 if not (token := server_utils.ensure_contains(
@@ -1107,4 +1106,8 @@ print("initialized Google Firebase Authentication & Database")
 try:
     server.loop.run_until_complete(main_loop(server))
 except KeyboardInterrupt:
+    for client in server.clients.values():
+        client.trans.write(client.packet_ctor.construct_response(
+            data=b"", opcode=0x8
+            ))
     print("exiting gracefully...")
