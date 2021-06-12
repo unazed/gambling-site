@@ -1084,6 +1084,8 @@ server.firebase = pyrebase.initialize_app({
 server.firebase_auth = server.firebase.auth()
 server.firebase_db = server.firebase.database()
 
+print(f"level indices: {server_constants.LEVEL_INDICES}")
+
 userlist = server.firebase_db.child("users").get().each()
 print("userlist from Firebase:")
 if userlist is not None:

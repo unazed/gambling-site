@@ -285,7 +285,7 @@ class HttpsServer(SocketServer):
             return
             # this doesn't necessarily mean failure
         if subdomain is not None:
-            print(f"{method['method']} {method['path']} under {subdomain}")
+            print(f"{method['method']} {subdomain}:{method['path']}")
         else:
             print(f"{method['method']} {method['path']}")
         resp = route['function'](
