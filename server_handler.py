@@ -154,6 +154,8 @@ class GamblingSiteWebsocketClient:
             print("received close frame")
             self.trans.close()
             return
+        elif data['opcode'] == 0x0A:
+            return print("received PONG frame")
         elif data['opcode'] == 0x01:
             try:
                 content = json.loads(data['data'])
@@ -217,6 +219,9 @@ class GamblingSiteWebsocketClient:
                     "action": "do_load",
                     "data": data
                 }))
+            elif action == "ping":
+                print("sending PING frame")
+                return self.trans.write(self.packet_ctor.construct_response(data=b"", opcode=0x09))
             elif action == "verify_recaptcha":
                 if not (token := server_utils.ensure_contains(
                         self, content, ("token",)

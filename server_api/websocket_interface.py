@@ -70,7 +70,7 @@ class WebsocketPacket:
             data = data.encode()
         
         fin_rsv_opcode = (final << 7) | opcode
-        if (param := EXTENSIONS.get("permessage-deflate")) is not None:
+        if (param := EXTENSIONS.get("permessage-deflate")) is not None and opcode == 0x01:
             fin_rsv_opcode |= 0b0100_0000
             data = self.comp_sess.deflate(data)
             if final and data.endswith(ZLIB_EMPTY_BLOCK):
@@ -126,7 +126,7 @@ class WebsocketPacket:
             ]
             data = bytearray(char ^ masking_key[idx % 4] for idx, char in enumerate(data))
         content = data
-        if (param := EXTENSIONS.get("permessage-deflate")) is not None:
+        if (param := EXTENSIONS.get("permessage-deflate")) is not None and rsv & 0b100:
             max_wbits = param.get("server_max_window_bits", param.get("client_max_window_bits", 15))
             if fin:
                 content += ZLIB_EMPTY_BLOCK

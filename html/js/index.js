@@ -278,6 +278,9 @@ $(window).on("load", function() {
       ws.send(JSON.stringify({
         action: "userlist_update"
       }))
+      ws.send(JSON.stringify({
+        action: "ping"
+      }));
     }, 5000);
 
   }

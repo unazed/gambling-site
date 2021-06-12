@@ -56,7 +56,8 @@ SUPPORTED_WS_ACTIONS = [
     "create_transaction",
     "check_transaction",
     "load_transactions",
-    "verify_recaptcha"
+    "verify_recaptcha",
+    "ping"
 ]
 
 RECAPTCHA_MIN_SCORE = 0.5
