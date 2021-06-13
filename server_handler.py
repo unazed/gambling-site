@@ -219,6 +219,9 @@ class GamblingSiteWebsocketClient:
                     "data": data
                 }))
             elif action == "ping":
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "pong"
+                    }))
                 return self.trans.write(self.packet_ctor.construct_response(data=b"", opcode=0x09))
             elif action == "verify_recaptcha":
                 if not (token := server_utils.ensure_contains(
@@ -827,10 +830,7 @@ class GamblingSiteWebsocketClient:
             elif action == "check_transaction":
                 if not self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({
-                        "action": "do_load",
-                        "data": self.server.read_file(
-                            server_constants.SUPPORTED_WS_EVENTS['forbidden']
-                        )
+                        "error": "login to check a transaction" 
                     }))
                     return
                 elif not (tx_id := server_utils.ensure_contains(

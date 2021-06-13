@@ -229,3 +229,7 @@ div#chatbox {
   flex-grow: 1;
   overflow: auto;
 }
+
+#last-ping {
+  margin-bottom: auto;
+}

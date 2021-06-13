@@ -5,6 +5,8 @@ var TYPES = {
   warning: "rgba(253, 126, 20, 0.5)"
 }
 
+var last_ping = +new Date;
+
 function is_mobile() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
@@ -116,7 +118,7 @@ function on_userlist_update(userlist) {
     if (userlist['last_pinged'][user] !== undefined)
     {
       secs_ago = ( ( (+new Date/1000 - userlist['last_pinged'][user])*10 ) >> 0 ) / 10;
-      if (secs_ago === 0)
+      if (secs_ago < 1)
       {
         time_since = "online";
       } else
@@ -189,6 +191,9 @@ function handle_ws_message(event) {
     if (typeof on_transactions_loaded !== "undefined") {
       on_transactions_loaded(content.data);
     }
+  } else if (content.action === "pong") {
+    $("#last-ping").text("last ping: " + ( (+new Date) - last_ping) + "ms");
+    last_ping = +new Date;
   } else if (content.warning) {
     display_notif(content.warning, "warning");
   } else if (content.success) {
@@ -274,10 +279,13 @@ $(window).on("load", function() {
         name: "navigation"
       }))
     }, 1000);
+    ws.send(JSON.stringify({
+      action: "userlist_update"
+    }));
     window.userlist_update = setInterval(function() {
       ws.send(JSON.stringify({
         action: "userlist_update"
-      }))
+      }));
       ws.send(JSON.stringify({
         action: "ping"
       }));
@@ -292,10 +300,26 @@ $(window).on("load", function() {
     } else {
       display_notif("closed websocket abruptly", "error");
     }
+    if (window.check_confirmation !== undefined)
+    {
+      for (const tx_id in window.check_confirmation)
+      {
+        clearInterval(window.check_confirmation(tx_id));
+      }
+    }
     clearInterval(window.nav_update);
     clearInterval(window.userlist_update);
+    display_retry_dialog(event.wasClean);
   }
 });
+
+function display_retry_dialog(was_clean)
+{
+  $("#main_container").empty().append($("<p class='m-3'>").text(
+    was_clean? "The server has shut down temporarily for maintenance"
+             : "The server encountered an internal error"
+  ));
+}
 
 $("#chatbox-input").on("keypress", function(e) {
   var msg;

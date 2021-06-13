@@ -4,7 +4,6 @@ window.check_confirmation = {};
 var is_confirmed = false;
 
 function on_wallet(wallet_info) {
-  console.log(wallet_info);
   deposit_info = wallet_info.deposit;
   withdraw_info = wallet_info.withdraw;
   total_btc_balance = deposit_info['per-market-volume']['bitcoin']
@@ -302,7 +301,6 @@ function on_transactions_loaded(transactions)
       action: "check_transaction",
       id: tx_id
     }));
-    console.log(transaction);
     $("#wallet-depo-tbody").append($("<tr id='" + tx_id + "'>").append(
       $("<td>").text(transaction['created_at']),
       $("<td>").text(transaction['pricing']['local']['amount'] + " " +

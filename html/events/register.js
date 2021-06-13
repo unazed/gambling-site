@@ -2,7 +2,7 @@ reset_state();
 $("#main_container").empty().append($("<div class='p-3 pb-0'>").append(`
 <div class="input-group mb-3">
   <div class="input-group-prepend">
-    <span class="input-group-text" id="basic-addon1">gambling-site.com/profile/</span>
+    <span class="input-group-text" id="basic-addon1">pots.bet/profile/</span>
   </div>
   <input type="text" id="input_username" class="form-control"
     placeholder="Username" aria-label="username" aria-describedby="basic-addon1">
