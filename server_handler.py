@@ -232,8 +232,7 @@ class GamblingSiteWebsocketClient:
                     "action": action,
                     "data": {
                         "list": server.lotteries,
-                        "active": {lottery: info for lottery, info in server.active_lotteries.items()   \
-                                    if info['is_active']}
+                        "active": server.active_lotteries
                         }
                     }))
             elif action == "view_lottery":

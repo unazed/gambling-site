@@ -244,13 +244,26 @@ div#chatbox {
   margin-top: 3em;
 }
 
+.lottery-item-mobile {
+  flex-grow: 1;
+  margin-top: 4.25em;
+}
+
 .d-flex.lottery-item.p-2:first-child {
   margin-top: 0;
 }
 
+.d-flex.lottery-item-mobile.p-2:first-child {
+  margin-top: 0;
+}
+
 .enter-btn {
-    color: #212529;
-    border: 1px solid #ced4da;
-    border-left: 0;
-    background-color: hsla(210, 59%, 96%, 1);
+  color: #212529;
+  border: 1px solid #ced4da;
+  border-left: 0;
+  background-color: hsla(210, 59%, 96%, 1);
+}
+
+.quantity-mobile {
+  min-width: 3em;
 }
