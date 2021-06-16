@@ -57,6 +57,7 @@ div#chatbox {
   height: inherit;
   display: flex;
   flex-direction: column-reverse;
+  position: relative;
 }
 
 #chatbox-input {
@@ -231,5 +232,25 @@ div#chatbox {
 }
 
 #last-ping {
-  margin-bottom: auto;
+  position: absolute;
+  top: .25rem;
+  right: .25rem;
+  background-color: hsla(208, 4%, 92%, 0.6)!important;
+  padding: .25rem;
+}
+
+.lottery-item {
+  flex-grow: 1;
+  margin-top: 3em;
+}
+
+.d-flex.lottery-item.p-2:first-child {
+  margin-top: 0;
+}
+
+.enter-btn {
+    color: #212529;
+    border: 1px solid #ced4da;
+    border-left: 0;
+    background-color: hsla(210, 59%, 96%, 1);
 }

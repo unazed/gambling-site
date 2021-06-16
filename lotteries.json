@@ -1,0 +1,29 @@
+[
+  {
+    "name": "Basic Lottery",
+    "max_tickets": 5,
+    "jackpot": 100,
+    "entry_requirements": {
+      "usd_price": 1,
+      "min_level": 1
+    }
+  },
+  {
+    "name": "Intermediate Lottery",
+    "max_tickets": 10,
+    "jackpot": 500,
+    "entry_requirements": {
+      "usd_price": 10,
+      "min_level": 2
+    }
+  },
+  {
+    "name": "Advanced Lottery",
+    "max_tickets": 10,
+    "jackpot": 1000,
+    "entry_requirements": {
+      "usd_price": 100,
+      "min_level": 5
+    }
+  }
+]

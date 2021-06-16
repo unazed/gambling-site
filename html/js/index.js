@@ -194,6 +194,10 @@ function handle_ws_message(event) {
   } else if (content.action === "pong") {
     $("#last-ping").text("last ping: " + ( (+new Date) - last_ping) + "ms");
     last_ping = +new Date;
+  } else if (content.action === "load_lotteries") { 
+    if (typeof on_lottery_load !== "undefined") {
+      on_lottery_load(content.data);
+    }
   } else if (content.warning) {
     display_notif(content.warning, "warning");
   } else if (content.success) {

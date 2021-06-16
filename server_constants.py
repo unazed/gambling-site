@@ -57,7 +57,8 @@ SUPPORTED_WS_ACTIONS = [
     "check_transaction",
     "load_transactions",
     "verify_recaptcha",
-    "ping"
+    "ping", "view_lottery",
+    "load_lotteries"
 ]
 
 RECAPTCHA_MIN_SCORE = 0.5
@@ -81,7 +82,7 @@ SUPPORTED_WS_EVENTS = {
     "notify": "events/notify.js",
     "wallet": when_authenticated("wallet.js", True),
     "show_profile": when_authenticated("show_profile.js", True),
-    "service_notify": when_authenticated("service_notify.js", True),
+    "view_lottery": when_authenticated("lottery.js", True)
 }
 
 MIMETYPES = {

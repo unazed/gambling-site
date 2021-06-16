@@ -223,6 +223,30 @@ class GamblingSiteWebsocketClient:
                     "action": "pong"
                     }))
                 return self.trans.write(self.packet_ctor.construct_response(data=b"", opcode=0x09))
+            elif action == "load_lotteries":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to load lotteries"
+                        }))
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": action,
+                    "data": {
+                        "list": server.lotteries,
+                        "active": {lottery: info for lottery, info in server.active_lotteries.items()   \
+                                    if info['is_active']}
+                        }
+                    }))
+            elif action == "view_lottery":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to participate in lottery"
+                        }))
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "do_load",
+                    "data": self.server.read_file(
+                        server_constants.SUPPORTED_WS_EVENTS['lottery']
+                    )
+                }))
             elif action == "verify_recaptcha":
                 if not (token := server_utils.ensure_contains(
                         self, content, ("token",)
@@ -954,6 +978,9 @@ def preinit_whitelist(server, addr):
         return
 
 
+if __name__ != "__main__":
+    raise RuntimeError("this file cannot be imported, it must be run at the top level")
+
 server = HttpsServer(
     root_directory="html/",
     host="0.0.0.0", port=8443,
@@ -1081,6 +1108,21 @@ if not os.path.isfile("keys/recaptcha-v3.key"):
 with open("keys/recaptcha-v3.key") as captcha_key:
     server.recaptcha_privkey = captcha_key.read().strip()
     print("loaded reCAPTCHA v3 key")
+
+if not os.path.isfile("lotteries.json"):
+    raise IOError("`lotteries.json` doesn't exist")
+
+server.active_lotteries = {}
+with open("lotteries.json") as lotteries:
+    server.lotteries = json.load(lotteries)
+    print("loaded lotteries")
+
+for lottery in server.lotteries:
+    server.active_lotteries[lottery['name']] = {
+            "is_active": False,
+            "enrolled_users": [],
+            "game_info": {}
+            }
 
 server.clients = {}
 server.last_pinged = {}
