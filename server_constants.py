@@ -58,7 +58,8 @@ SUPPORTED_WS_ACTIONS = [
     "load_transactions",
     "verify_recaptcha",
     "ping", "view_lottery",
-    "load_lotteries"
+    "load_lotteries",
+    "join_lottery"
 ]
 
 RECAPTCHA_MIN_SCORE = 0.5
@@ -82,7 +83,8 @@ SUPPORTED_WS_EVENTS = {
     "notify": "events/notify.js",
     "wallet": when_authenticated("wallet.js", True),
     "show_profile": when_authenticated("show_profile.js", True),
-    "view_lottery": when_authenticated("lottery.js", True)
+    "view_lottery": when_authenticated("lottery.js", True),
+    "join_lottery": when_authenticated("lottery_view.js", True)
 }
 
 MIMETYPES = {
@@ -95,6 +97,9 @@ MIMETYPES = {
 
 DEFAULT_RANK = "default"
 UPGRADED_RANK = "upgraded"
+
+LOTTERY_START_TIME = 5 * 60
+LOTTERY_USER_JOIN_TIME_BONUS = 10
 
 RANK_PROPERTIES = {
     DEFAULT_RANK: {

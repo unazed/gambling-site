@@ -62,7 +62,8 @@ function on_lottery_load(lotteries)
       quantity = $("#" + lottery['name'].replace(" ", "\\ ") + "-quantity");
       button.prop("disabled", true);
       window.ws.send(JSON.stringify({
-        action: "enter_lottery",
+        action: "join_lottery",
+        name: lottery['name'],
         quantity: quantity.val()
       }));
     });

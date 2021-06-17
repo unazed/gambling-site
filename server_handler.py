@@ -52,7 +52,7 @@ class GamblingSiteWebsocketClient:
         self.__is_final = True
         self.__data_buffer = ""
 
-    def add_user_withdrawal(self, charge):
+    def add_user_withdrawal(self, charge, validate=False):
         _, currency, address, amount = charge
         print(f"creating withdrawal for '{amount} {currency}' {type(amount)}")
         server.firebase_db.child("withdrawals").child(self.authentication['username']) \
@@ -60,7 +60,8 @@ class GamblingSiteWebsocketClient:
                             "address": address,
                             "currency": currency,
                             "local_amount": round(server_utils.crypto_to_usd(float(amount), currency), 2),
-                            "created_at": datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+                            "created_at": datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S'),
+                            "validated": validate
                             })
 
     def add_user_deposit(self, charge):
@@ -86,13 +87,31 @@ class GamblingSiteWebsocketClient:
         return server.firebase_db.child("deposits").child(username  \
                 or self.authentication['username']).child(id_).get().val()
 
+    def get_balance(self, market="bitcoin", username=None):
+        total = 0
+        for deposit in self.get_deposits(username=username).values():
+            if not deposit['validated']:
+                continue
+            total += float(deposit['pricing'][market]['amount'])
+        for withdrawal in self.get_withdrawals() or []:
+            print(withdrawal)
+            if not withdrawal['validated']:
+                continue
+            elif withdrawal['currency'] != market:
+                continue
+            total -= server_utils.usd_to_crypto(withdrawal['local_amount'], withdrawal['currency'])
+        return total
+
     def get_deposits(self, username=None):
         return server.firebase_db.child("deposits").child(username  \
                 or self.authentication['username']).get().val()
 
     def get_withdrawals(self, username=None):
-        return server.firebase_db.child("withdrawals").child(username  \
+        withdrawals = server.firebase_db.child("withdrawals").child(username  \
                 or self.authentication['username']).get().val()
+        if withdrawals is not None:
+            return withdrawals.values()
+        return []
 
     def update_user_by_firebase(self, data, username=None):
         userkey = [*server.firebase_db.child("users").order_by_child("username")              \
@@ -235,6 +254,87 @@ class GamblingSiteWebsocketClient:
                         "active": server.active_lotteries
                         }
                     }))
+            elif action == "join_lottery":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to participate in lottery"
+                        }))
+                elif not (content := server_utils.ensure_contains(
+                        self, content, ("name", "quantity")
+                        )):
+                    return
+                name, quantity = content
+                if name not in server.active_lotteries:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "lottery doesn't exist"
+                        }))
+
+                active_lottery = server.active_lotteries[name]
+                if active_lottery['game_info']['started_at'] is not None and \
+                        (time.time() - active_lottery['game_info']['started_at']) > active_lottery['game_info']['start_in']:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "lottery is already in procession"
+                        }))
+                
+                for lottery in server.lotteries:
+                    if lottery['name'] == name:
+                        break
+                else:
+                    raise IndexError("lottery in active lotteries, but not in lottery template")
+
+                try:
+                    quantity = int(quantity)
+                except ValueError:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "quantity is non-numeric"
+                        }))
+
+                if not (1 <= quantity <= lottery['max_tickets']):
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "quantity requested to be bought exceeds lottery limits"
+                        }))
+                
+                btc_price = quantity * server_utils.usd_to_crypto(lottery['entry_requirements']['usd_price'], "bitcoin")
+                eth_price = quantity * server_utils.usd_to_crypto(lottery['entry_requirements']['usd_price'], "ethereum")
+
+                btc_balance = self.get_balance("bitcoin")
+                eth_balance = self.get_balance("ethereum")
+
+                if btc_balance < btc_price and eth_balance < eth_price:                 # avoid calculating if user can afford quantity using
+                    return self.trans.write(self.packet_ctor.construct_response({       # both BTC + ETH for the time being
+                        "error": "you can't afford this many tickets"
+                        }))
+                elif eth_balance >= eth_price:
+                    print(f"purchasing {eth_price} ETH of tickets (x{quantity}) for {name}")
+                    self.add_user_withdrawal(("", "ethereum", "SERVER", eth_price), validate=True)
+                elif btc_balance >= btc_price:
+                    print(f"purchasing {btc_price} BTC of tickets (x{quantity}) for {name}")
+                    self.add_user_withdrawal(("", "bitcoin", "SERVER", btc_price), validate=True)
+
+                print(f"{self.authentication['username']} joined {name}")
+
+                if active_lottery['game_info']['started_at'] is None:
+                    print(f"starting lottery {name}")
+                    active_lottery['game_info']['started_at'] = time.time()
+                    active_lottery['game_info']['start_in'] = server_constants.LOTTERY_START_TIME
+                else:
+                    active_lottery['game_info']['start_in'] += server_constants.LOTTERY_USER_JOIN_TIME_BONUS
+
+                active_lottery['enrolled_users'][self.authentication['username']] = {
+                        "seed": None,
+                        "quantity": quantity,
+                        "numbers": None
+                        }
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "do_load",
+                    "data": self.server.read_file(
+                        server_constants.SUPPORTED_WS_EVENTS['join_lottery'],
+                        format={
+                            "$$lottery": name
+                            }
+                    )
+                }))
+                
             elif action == "view_lottery":
                 if not self.authentication:
                     return self.trans.write(self.packet_ctor.construct_response({
@@ -267,7 +367,7 @@ class GamblingSiteWebsocketClient:
                     "action": "load_transactions",
                     "data": {
                         "deposits": self.get_deposits(),
-                        "withdrawals": self.get_withdrawals()
+                        "withdrawals": list(self.get_withdrawals())
                         }
                     }))
             elif action == "userlist_update":
@@ -331,11 +431,11 @@ class GamblingSiteWebsocketClient:
                         "amount": amount
                         })
 
-                for withdrawal in withdrawals.values():
-                    market = withdrawal['requested_currency']
+                for withdrawal in withdrawals:
+                    market = withdrawal['currency']
                     if market not in markets:
                         continue
-                    amount = float(withdrawal['pricing'][market]['amount'])
+                    amount = server_utils.usd_to_crypto(withdrawal['local_amount'], market)
                     per_market_withdrawal_sum[market] += amount
                     withdraw_volume += amount
                     per_market_withdrawals[market].append({
@@ -1119,8 +1219,11 @@ with open("lotteries.json") as lotteries:
 for lottery in server.lotteries:
     server.active_lotteries[lottery['name']] = {
             "is_active": False,
-            "enrolled_users": [],
-            "game_info": {}
+            "enrolled_users": {},
+            "game_info": {
+                "started_at": None,
+                "server_seed": None
+                },
             }
 
 server.clients = {}

@@ -33,6 +33,14 @@ def crypto_to_usd(amount, crypto):
     return amount * get_crypto_prices([crypto])[crypto]['USD']
 
 
+def usd_to_crypto(amount, crypto):
+    if crypto == "bitcoin":
+        crypto = "BTC"
+    elif crypto == "ethereum":
+        crypto = "ETH"
+    return amount / get_crypto_prices(crypto)[crypto]["USD"]
+
+
 def ensure_contains(self, data, keys):
     ret = []
     for key in keys:
