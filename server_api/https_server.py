@@ -252,7 +252,7 @@ class HttpsServer(SocketServer):
                 return
 
         # upgrade connection, if necessary
-        if "upgrade" in headers.get("connection").lower():
+        if "upgrade" in headers.get("connection", "").lower():
             if (upgrade_method := headers.get("upgrade")) is None:
                 server.trans.write(self.construct_response("Bad Request",
                     error_body="<p>Connection requested to be upgraded, "
