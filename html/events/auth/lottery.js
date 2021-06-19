@@ -3,7 +3,6 @@ reset_state();
 function on_lottery_load(lotteries)
 {
   $("#lottery-container").empty();
-  console.log(lotteries);
   for (const lottery of lotteries.list) {
     $("#lottery-container").append(
       $("<div class='d-flex p-2'>").append(
@@ -25,7 +24,7 @@ function on_lottery_load(lotteries)
             (!is_mobile())? 
               $("<small class='pl-3 ml-3'>").text(lotteries.active[lottery['name']].is_active? "currently in procession": "available to join")
                 .css({"border-left": "1px solid hsla(210, 14%, 74%, 1)"})
-            :  $("<small class='border-left pl-3 ml-3'>").text(lotteries.active[lottery['name']].is_active? "busy": "free")
+            :  $("<small class='border-left pl-3 ml-3'>").text(lotteries.active[lottery['name']].is_active? "running": "free")
           ),
           $("<div class='border border-top-0 p-2'>").append(`
           <div class="input-group">
@@ -36,12 +35,12 @@ function on_lottery_load(lotteries)
               ">Qty.</span>
             </div>
             <input type="number" min="1" max="` + lottery.max_tickets + `" step="1" class="form-control ` + ( is_mobile()? "quantity-mobile": "" ) + `"
-              aria-label="Quantity" aria-describedby="quantity" id="` + lottery['name'] + "-quantity" + `">
+              aria-label="Quantity" aria-describedby="quantity" id="` + lottery['name'] + "-quantity" + `" ` + (($$username in lotteries.active[lottery['name']]['enrolled_users'])? "disabled": "") + `>
             <div class="input-group-append">
               <button class="btn enter-btn btn-outline-primary" type="button" style="
                 border-bottom-left-radius: 0;
                 border-top-left-radius: 0;
-                " ` + ( lotteries.active[lottery['name']].is_active? "disabled": "" ) + ` id="` + lottery['name'] + "-btn" + `">Enter</button>
+                " id="` + lottery['name'] + "-btn" + `">` + (($$username in lotteries.active[lottery['name']]['enrolled_users'])? "Rejoin": "Enter") + `</button>
             </div>
           </div>
           `).css({
@@ -61,6 +60,7 @@ function on_lottery_load(lotteries)
     button.click(function() {
       quantity = $("#" + lottery['name'].replace(" ", "\\ ") + "-quantity");
       $(this).prop("disabled", true);
+      setTimeout(function() { $("#" + lottery['name'].replace(" ", "\\ ") + "-btn").prop("disabled", false); }, 1000);
       window.ws.send(JSON.stringify({
         action: "join_lottery",
         name: lottery['name'],

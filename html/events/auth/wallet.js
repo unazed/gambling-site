@@ -22,7 +22,7 @@ function on_wallet(wallet_info) {
 
   $("#wallet-info").append(
     $("<span>").text("Bitcoin: " + total_btc_balance + ", Ethereum: " + total_eth_balance),
-    $("<span>").text("Net: $" + (btc_usd + eth_usd))
+    $("<span>").text("Net total: $" + ( ( (btc_usd + eth_usd) * 100 ) << 0 ) / 100)
   );
 
   $("#wallet-action").empty().append(`

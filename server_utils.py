@@ -19,6 +19,11 @@ def hash_server_seed(seed):
     return hashlib.sha256(seed.to_bytes(seed.bit_length() // 8 + 1, 'little')).hexdigest()
 
 
+def generate_n_numbers(n, seed):
+    random.seed(seed or (seed := random.randint(1, 1e15)))
+    return (tuple(random.randint(1, 10) for _ in range(n)), seed)
+
+
 def get_crypto_prices(markets, timestamp=None):
     for idx, market in enumerate(markets):
         if market == "bitcoin":

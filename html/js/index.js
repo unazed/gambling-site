@@ -6,7 +6,7 @@ var TYPES = {
 }
 
 var last_ping = +new Date;
-window.lottery_intervals = []
+window.lottery_intervals = {};
 
 function is_mobile() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -318,9 +318,9 @@ $(window).on("load", function() {
     }
     if (window.lottery_intervals.length > 0)
     {
-      for (const interval of window.lottery_intervals)
+      for (const lottery in window.lottery_intervals)
       {
-        clearInterval(interval);
+        clearInterval(window.lottery_intervals[lottery]);
       }
     }
     clearInterval(window.nav_update);

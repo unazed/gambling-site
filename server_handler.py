@@ -55,7 +55,7 @@ class GamblingSiteWebsocketClient:
     def add_user_withdrawal(self, charge, validate=False):
         _, currency, address, amount = charge
         print(f"creating withdrawal for '{amount} {currency}' {type(amount)}")
-        server.firebase_db.child("withdrawals").child(self.authentication['username']) \
+        return server.firebase_db.child("withdrawals").child(self.authentication['username']) \
                           .push({
                             "address": address,
                             "currency": currency,
@@ -64,17 +64,37 @@ class GamblingSiteWebsocketClient:
                             "validated": validate
                             })
 
-    def add_user_deposit(self, charge):
+    def remove_user_withdrawal(self, tx_id, username=None):
+        print(f"invalidating withdrawal {tx_id=}")
+        server.firebase_db.child("withdrawals").child(username or self.authentication['username']) \
+                                               .child(tx_id).update({"validated": False})
+
+    def add_user_deposit(self, charge, *, validate=False, meta=None, push=False,
+            conv_date=False):
+        if not push:
+            return server.firebase_db.child("deposits").child(self.authentication['username']) \
+                            .child(charge['id']).set({
+                                  "pricing": charge['pricing'],
+                                  "addresses": charge['addresses'],
+                                  "expires_at": charge['expires_at'],
+                                  "created_at": datetime.datetime.fromtimestamp(
+                                      datetime.datetime.strptime(charge['created_at'], "%Y-%m-%dT%H:%M:%SZ").timestamp()
+                                      ).strftime('%Y-%m-%d %H:%M:%S') if conv_date else charge['created_at'],
+                                  "requested_currency": charge['requested_currency'],
+                                  "validated": validate,
+                                  "meta": meta or {}
+                                })
         server.firebase_db.child("deposits").child(self.authentication['username']) \
-                          .child(charge['id']).set({
+                          .push({
                               "pricing": charge['pricing'],
                               "addresses": charge['addresses'],
                               "expires_at": charge['expires_at'],
                               "created_at": datetime.datetime.fromtimestamp(
                                   datetime.datetime.strptime(charge['created_at'], "%Y-%m-%dT%H:%M:%SZ").timestamp()
-                                  ).strftime('%Y-%m-%d %H:%M:%S'),
+                                  ).strftime('%Y-%m-%d %H:%M:%S') if conv_date else charge['created_at'],
                               "requested_currency": charge['requested_currency'],
-                              "validated": False
+                              "validated": validate,
+                              "meta": meta or {}
                             })
 
     def validate_deposit(self, id_, username=None):
@@ -269,9 +289,25 @@ class GamblingSiteWebsocketClient:
                     return self.trans.write(self.packet_ctor.construct_response({
                         "error": "lottery doesn't exist"
                         }))
-
                 active_lottery = server.active_lotteries[name]
-                if active_lottery['game_info']['started_at'] is not None and \
+                if active_lottery['is_active'] and self.authentication['username'] in active_lottery['enrolled_users']:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['join_lottery'],
+                            format={
+                                "$$lottery": name,
+                                "$$seed": server_utils.hash_server_seed(
+                                    active_lottery['game_info']['server_seed']
+                                    ),
+                                "$$clientseed": str(
+                                    active_lottery['enrolled_users'][self.authentication['username']]['seed']
+                                    ),
+                                "$$username": self.authentication['username']
+                                }
+                        )
+                    }))
+                elif active_lottery['game_info']['started_at'] is not None and \
                         (time.time() - active_lottery['game_info']['started_at']) > active_lottery['game_info']['start_in']:
                     return self.trans.write(self.packet_ctor.construct_response({
                         "error": "lottery is already in procession"
@@ -307,27 +343,35 @@ class GamblingSiteWebsocketClient:
                         }))
                 elif eth_balance >= eth_price:
                     print(f"purchasing {eth_price} ETH of tickets (x{quantity}) for {name}")
-                    self.add_user_withdrawal(("", "ethereum", "SERVER", eth_price), validate=True)
+                    tx_id = self.add_user_withdrawal(("", "ethereum", "SERVER", eth_price), validate=True)['name']
                 elif btc_balance >= btc_price:
                     print(f"purchasing {btc_price} BTC of tickets (x{quantity}) for {name}")
-                    self.add_user_withdrawal(("", "bitcoin", "SERVER", btc_price), validate=True)
+                    tx_id = self.add_user_withdrawal(("", "bitcoin", "SERVER", btc_price), validate=True)['name']
+
+                self.update_user_by_firebase({
+                    "cleared": self.get_user_by_firebase()['cleared'] + quantity * lottery['entry_requirements']['usd_price']
+                    })
 
                 print(f"{self.authentication['username']} joined {name}")
 
                 if active_lottery['game_info']['started_at'] is None:
                     print(f"starting lottery {name}")
                     active_lottery['is_active'] = True
-                    active_lottery['game_info']['started_at'] = time.time()
-                    active_lottery['game_info']['start_in'] = server_constants.LOTTERY_START_TIME
-                    active_lottery['game_info']['server_seed'] = server_seed = server_utils.generate_server_seed()
+                    active_lottery['game_info'].update({
+                        "started_at": time.time(),
+                        "start_in": server_constants.LOTTERY_START_TIME,
+                        "server_seed": (server_seed := server_utils.generate_server_seed())
+                        })
                 else:
                     active_lottery['game_info']['start_in'] += server_constants.LOTTERY_USER_JOIN_TIME_BONUS
                     server_seed = active_lottery['game_info']['server_seed']
 
+                numbers, seed = server_utils.generate_n_numbers(quantity, None)
                 active_lottery['enrolled_users'][self.authentication['username']] = {
-                        "seed": None,
+                        "seed": seed,
                         "quantity": quantity,
-                        "numbers": None
+                        "numbers": numbers,
+                        "tx_id": tx_id
                         }
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "do_load",
@@ -335,10 +379,51 @@ class GamblingSiteWebsocketClient:
                         server_constants.SUPPORTED_WS_EVENTS['join_lottery'],
                         format={
                             "$$lottery": name,
-                            "$$seed": server_utils.hash_server_seed(server_seed)
+                            "$$seed": server_utils.hash_server_seed(server_seed),
+                            "$$clientseed": str(seed),
+                            "$$username": self.authentication['username']
                             }
                     )
                 }))
+            elif action == "lottery_clientseed":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to change client-seed"
+                        }))
+                elif not (content := server_utils.ensure_contains(
+                        self, content, ("name", "seed")
+                        )):
+                    return
+                name, seed = content
+
+                if (lottery := server.active_lotteries.get(name)) is None:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "lottery doesn't exist by that name"
+                        }))
+                elif not lottery['is_active']:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "lottery isn't currently active"
+                        }))
+                elif (user_obj := lottery['enrolled_users'].get(self.authentication['username'])) is None:
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "error": "you aren't participating in this lottery (clientseed)"
+                        }))
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['reset_lottery'],
+                            format={
+                                "$$lottery": name
+                                }
+                            )
+                        }))
+
+                user_obj['numbers'], user_obj['seed'] = server_utils.generate_n_numbers(
+                        user_obj['quantity'], seed
+                        )
+                self.trans.write(self.packet_ctor.construct_response({
+                    "success": "changed clientseed"
+                    }))
             elif action == "lottery_heartbeat":
                 if not self.authentication:
                     return self.trans.write(self.packet_ctor.construct_response({
@@ -353,16 +438,157 @@ class GamblingSiteWebsocketClient:
                     return self.trans.write(self.packet_ctor.construct_response({
                         "error": "lottery doesn't exist by that name"
                         }))
-                lottery = copy.deepcopy(lottery)
-                if not lottery['is_active']:
-                    return
-                del lottery['game_info']['server_seed']
+                elif (user_obj := lottery['enrolled_users'].get(self.authentication['username'])) is None:
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "error": "you aren't participating in this lottery (heartbeat)"
+                        }))
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['reset_lottery'],
+                            format={
+                                "$$lottery": name
+                                }
+                            )
+                        }))
+
+                lottery_templ = [lottery_ for lottery_ in server.lotteries if lottery_['name'] == name][0]
+                if time.time() >= lottery['game_info']['started_at'] + lottery['game_info']['start_in']:
+                    lottery['is_active'] = False
+                    lottery['numbers'] = (res := server_utils.generate_n_numbers(
+                            lottery_templ['max_tickets'], lottery['game_info']['server_seed']
+                            )[0])
+                    for number in user_obj['numbers']:
+                        if number in lottery['numbers']:  # jackpot :)
+                            self.trans.write(self.packet_ctor.construct_response({
+                                "success": f"You won the {name!r} jackpot for ${lottery_templ['jackpot']}. Congrats!"
+                                }))
+                            self.add_user_deposit({
+                                "pricing": {
+                                    "local": {
+                                        "amount": lottery_templ['jackpot'],
+                                        "currency": "USD"
+                                        },
+                                    "ethereum": {
+                                        "amount": server_utils.usd_to_crypto(lottery_templ['jackpot'], "ethereum"),
+                                        "currency": "ETH"
+                                        },
+                                    "bitcoin": {
+                                        "amount": server_utils.usd_to_crypto(lottery_templ['jackpot'], "bitcoin"),
+                                        "currency": "BTC"
+                                        }
+                                    },
+                                "addresses": {
+                                    "bitcoin": f"from lottery {name!r}"
+                                    },
+                                "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                "expires_at": "n/a",
+                                "requested_currency": "bitcoin",
+                                }, conv_date=False, validate=True, push=True, meta={
+                                    "client-seed": user_obj['seed'],
+                                    "client-rolls": user_obj['numbers'],
+                                    "server-seed": lottery['game_info']['server_seed'],
+                                    "server-rolls": lottery['numbers']
+                                    })
+                            break
+                    else:
+                        self.trans.write(self.packet_ctor.construct_response({
+                            "warning": "Better luck next time"
+                            }))
+                    lottery = copy.deepcopy(lottery)
+                    server.active_lotteries[name].update({
+                        "game_info": {
+                            "started_at": None,
+                            "server_seed": None
+                            },
+                        "enrolled_users": {}
+                        })
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['reset_lottery'],
+                            format={
+                                "$$lottery": name
+                                }
+                            )
+                        }))
+                    print(f"finishing lottery: {name!r} with numbers {' '.join(map(str, res))}")
+                else:
+                    lottery = copy.deepcopy(lottery)
+                    del lottery['game_info']['server_seed']
+
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "lottery_heartbeat",
                     "data": {
                         "active": lottery,
                         "templ": [lottery for lottery in server.lotteries if lottery['name'] == name][0]
                         }
+                    }))
+            elif action == "leave_lottery":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to leave a lottery"
+                        }))
+                elif not (name := server_utils.ensure_contains(
+                        self, content, ("name",)
+                        )):
+                    return
+                name = name[0]
+                if (lottery := server.active_lotteries.get(name)) is None:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "lottery doesn't exist by that name"
+                        }))
+                elif not lottery['is_active']:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['home'],
+                            format={
+                                "$$username": self.authentication['username']
+                                }
+                            )
+                        }))
+                elif (user_obj := lottery['enrolled_users'].get(self.authentication['username'])) is None:
+                    self.trans.write(self.packet_ctor.construct_response({
+                        "error": "you aren't participating in this lottery (leaving)"
+                        }))
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['reset_lottery'],
+                            format={
+                                "$$lottery": name
+                                }
+                            )
+                        }))
+                elif time.time() >= lottery['game_info']['started_at'] + lottery['game_info']['start_in'] - 10:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "you can't leave the lottery with 10 seconds on the clock"
+                        }))
+                lottery_templ = [lottery_ for lottery_ in server.lotteries if lottery_['name'] == name][0]
+                self.remove_user_withdrawal(lottery['enrolled_users'][self.authentication['username']]['tx_id'])
+                self.update_user_by_firebase({
+                    "cleared": self.get_user_by_firebase()['cleared'] - \
+                            user_obj['quantity'] * lottery_templ['entry_requirements']['usd_price']
+                    })
+                del lottery['enrolled_users'][self.authentication['username']]
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "do_load",
+                    "data": self.server.read_file(
+                        server_constants.SUPPORTED_WS_EVENTS['reset_lottery'],
+                        format={
+                            "$$lottery": name
+                            }
+                        )
+                    }))
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "do_load",
+                    "data": self.server.read_file(
+                        server_constants.SUPPORTED_WS_EVENTS['home'],
+                        format={
+                            "$$username": self.authentication['username']
+                            }
+                        )
                     }))
             elif action == "view_lottery":
                 if not self.authentication:
@@ -372,7 +598,10 @@ class GamblingSiteWebsocketClient:
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "do_load",
                     "data": self.server.read_file(
-                        server_constants.SUPPORTED_WS_EVENTS['lottery']
+                        server_constants.SUPPORTED_WS_EVENTS['lottery'],
+                        format={
+                            "$$username": self.authentication['username']
+                            }
                     )
                 }))
             elif action == "verify_recaptcha":
@@ -461,6 +690,8 @@ class GamblingSiteWebsocketClient:
                         })
 
                 for withdrawal in withdrawals:
+                    if not withdrawal['validated']:
+                        continue
                     market = withdrawal['currency']
                     if market not in markets:
                         continue

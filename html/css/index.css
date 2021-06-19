@@ -290,3 +290,7 @@ div#chatbox {
   flex-direction: column;
   flex-grow: 1;
 }
+
+#lottery-users {
+  overflow: auto;
+}
