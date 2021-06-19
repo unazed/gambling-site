@@ -6,6 +6,7 @@ var TYPES = {
 }
 
 var last_ping = +new Date;
+window.lottery_intervals = []
 
 function is_mobile() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -198,6 +199,10 @@ function handle_ws_message(event) {
     if (typeof on_lottery_load !== "undefined") {
       on_lottery_load(content.data);
     }
+  } else if (content.action === "lottery_heartbeat") { 
+    if (typeof on_lottery_update !== "undefined") {
+      on_lottery_update(content.data);
+    }
   } else if (content.warning) {
     display_notif(content.warning, "warning");
   } else if (content.success) {
@@ -309,6 +314,13 @@ $(window).on("load", function() {
       for (const tx_id in window.check_confirmation)
       {
         clearInterval(window.check_confirmation(tx_id));
+      }
+    }
+    if (window.lottery_intervals.length > 0)
+    {
+      for (const interval of window.lottery_intervals)
+      {
+        clearInterval(interval);
       }
     }
     clearInterval(window.nav_update);

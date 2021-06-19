@@ -267,3 +267,26 @@ div#chatbox {
 .quantity-mobile {
   min-width: 3em;
 }
+
+#lottery-container {
+  flex-direction: column;
+}
+
+#lottery-numbers {
+  flex-grow: 1;
+}
+
+#lottery-leave-btn {
+  float: right;
+}
+
+#lottery-seed {
+  position: absolute;
+  flex-direction: column;
+  width: 29%;
+}
+
+#lottery-seed-mobile {
+  flex-direction: column;
+  flex-grow: 1;
+}

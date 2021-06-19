@@ -60,7 +60,7 @@ function on_lottery_load(lotteries)
     button = $("#" + lottery['name'].replace(" ", "\\ ") + "-btn");
     button.click(function() {
       quantity = $("#" + lottery['name'].replace(" ", "\\ ") + "-quantity");
-      button.prop("disabled", true);
+      $(this).prop("disabled", true);
       window.ws.send(JSON.stringify({
         action: "join_lottery",
         name: lottery['name'],

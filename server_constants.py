@@ -59,7 +59,8 @@ SUPPORTED_WS_ACTIONS = [
     "verify_recaptcha",
     "ping", "view_lottery",
     "load_lotteries",
-    "join_lottery"
+    "join_lottery",
+    "lottery_heartbeat"
 ]
 
 RECAPTCHA_MIN_SCORE = 0.5

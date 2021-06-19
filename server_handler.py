@@ -3,6 +3,7 @@ from html import escape
 from secrets import token_urlsafe
 import asyncio
 import base64
+import copy
 import datetime
 import hashlib
 import time
@@ -13,7 +14,6 @@ import os
 import json
 import string
 import types
-import pprint
 
 from coinbase_commerce.client import Client as CoinbaseClient
 import pyrebase
@@ -92,9 +92,10 @@ class GamblingSiteWebsocketClient:
         for deposit in self.get_deposits(username=username).values():
             if not deposit['validated']:
                 continue
+            elif not deposit['requested_currency'] == market:
+                continue
             total += float(deposit['pricing'][market]['amount'])
         for withdrawal in self.get_withdrawals() or []:
-            print(withdrawal)
             if not withdrawal['validated']:
                 continue
             elif withdrawal['currency'] != market:
@@ -315,10 +316,13 @@ class GamblingSiteWebsocketClient:
 
                 if active_lottery['game_info']['started_at'] is None:
                     print(f"starting lottery {name}")
+                    active_lottery['is_active'] = True
                     active_lottery['game_info']['started_at'] = time.time()
                     active_lottery['game_info']['start_in'] = server_constants.LOTTERY_START_TIME
+                    active_lottery['game_info']['server_seed'] = server_seed = server_utils.generate_server_seed()
                 else:
                     active_lottery['game_info']['start_in'] += server_constants.LOTTERY_USER_JOIN_TIME_BONUS
+                    server_seed = active_lottery['game_info']['server_seed']
 
                 active_lottery['enrolled_users'][self.authentication['username']] = {
                         "seed": None,
@@ -330,11 +334,36 @@ class GamblingSiteWebsocketClient:
                     "data": self.server.read_file(
                         server_constants.SUPPORTED_WS_EVENTS['join_lottery'],
                         format={
-                            "$$lottery": name
+                            "$$lottery": name,
+                            "$$seed": server_utils.hash_server_seed(server_seed)
                             }
                     )
                 }))
-                
+            elif action == "lottery_heartbeat":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to participate in lottery"
+                        }))
+                elif not (name := server_utils.ensure_contains(
+                        self, content, ("name",)
+                        )):
+                    return
+                name = name[0]
+                if (lottery := server.active_lotteries.get(name)) is None:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "lottery doesn't exist by that name"
+                        }))
+                lottery = copy.deepcopy(lottery)
+                if not lottery['is_active']:
+                    return
+                del lottery['game_info']['server_seed']
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "lottery_heartbeat",
+                    "data": {
+                        "active": lottery,
+                        "templ": [lottery for lottery in server.lotteries if lottery['name'] == name][0]
+                        }
+                    }))
             elif action == "view_lottery":
                 if not self.authentication:
                     return self.trans.write(self.packet_ctor.construct_response({
@@ -435,7 +464,9 @@ class GamblingSiteWebsocketClient:
                     market = withdrawal['currency']
                     if market not in markets:
                         continue
-                    amount = server_utils.usd_to_crypto(withdrawal['local_amount'], market)
+                    amount = server_utils.usd_to_crypto(withdrawal['local_amount'], market, timestamp=datetime.datetime.strptime(
+                        withdrawal['created_at'], '%Y-%m-%d %H:%M:%S'
+                        ).timestamp())
                     per_market_withdrawal_sum[market] += amount
                     withdraw_volume += amount
                     per_market_withdrawals[market].append({
@@ -1215,6 +1246,13 @@ server.active_lotteries = {}
 with open("lotteries.json") as lotteries:
     server.lotteries = json.load(lotteries)
     print("loaded lotteries")
+
+if not os.path.isfile("keys/cryptocompare.key"):
+    print("Cryptocompare API key doesn't exist`")
+else:
+    with open("keys/cryptocompare.key") as cryptocompare:
+        server_utils.cryptocompare.cryptocompare._set_api_key_parameter(cryptocompare.read().strip())
+        print("loaded Cryptocompare API key")
 
 for lottery in server.lotteries:
     server.active_lotteries[lottery['name']] = {

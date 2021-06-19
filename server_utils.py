@@ -1,6 +1,8 @@
 from html import escape
 import cryptocompare
+import hashlib
 import json
+import random
 import requests
 from server_api.websocket_interface import WebsocketPacket
 
@@ -9,13 +11,25 @@ with open("filtered-words.txt") as filtered:
     filtered = [*map(str.strip, filtered)]
 
 
-def get_crypto_prices(markets):
+def generate_server_seed():
+    return int(1e10 * random.random())
+
+
+def hash_server_seed(seed):
+    return hashlib.sha256(seed.to_bytes(seed.bit_length() // 8 + 1, 'little')).hexdigest()
+
+
+def get_crypto_prices(markets, timestamp=None):
     for idx, market in enumerate(markets):
         if market == "bitcoin":
-            markets[idx] = "btc"
+            markets[idx] = "BTC"
         elif market == "ethereum":
-            markets[idx] = "eth"
-    return cryptocompare.get_price(markets, currency='USD')
+            markets[idx] = "ETH"
+    if timestamp is None:
+        return cryptocompare.get_price(markets, currency='USD')
+    elif isinstance(markets, list):
+        return {market: cryptocompare.get_historical_price(market, currency='USD', timestamp=timestamp) for market in markets}
+    return cryptocompare.get_historical_price(markets, currency='USD', timestamp=timestamp)
 
 
 def get_recaptcha_response(recaptcha_privkey, token):
@@ -33,7 +47,7 @@ def crypto_to_usd(amount, crypto):
     return amount * get_crypto_prices([crypto])[crypto]['USD']
 
 
-def usd_to_crypto(amount, crypto):
+def usd_to_crypto(amount, crypto, timestamp=None):
     if crypto == "bitcoin":
         crypto = "BTC"
     elif crypto == "ethereum":
