@@ -35,12 +35,12 @@ function on_lottery_load(lotteries)
               ">Qty.</span>
             </div>
             <input type="number" min="1" max="` + lottery.max_tickets + `" step="1" class="form-control ` + ( is_mobile()? "quantity-mobile": "" ) + `"
-              aria-label="Quantity" aria-describedby="quantity" id="` + lottery['name'] + "-quantity" + `" ` + (($$username in lotteries.active[lottery['name']]['enrolled_users'])? "disabled": "") + `>
+              aria-label="Quantity" aria-describedby="quantity" id="` + lottery['name'] + "-quantity" + `" ` + (($$username in lotteries.active[lottery['name']]['enrolled_users'] && lotteries.active[lottery['name']].is_active)? "disabled": "") + `>
             <div class="input-group-append">
               <button class="btn enter-btn btn-outline-primary" type="button" style="
                 border-bottom-left-radius: 0;
                 border-top-left-radius: 0;
-                " id="` + lottery['name'] + "-btn" + `">` + (($$username in lotteries.active[lottery['name']]['enrolled_users'])? "Rejoin": "Enter") + `</button>
+                " id="` + lottery['name'] + "-btn" + `">` + (($$username in lotteries.active[lottery['name']]['enrolled_users'] && lotteries.active[lottery['name']].is_active)? "Rejoin": "Enter") + `</button>
             </div>
           </div>
           `).css({

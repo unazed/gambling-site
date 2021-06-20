@@ -45,6 +45,7 @@ class GamblingSiteWebsocketClient:
         self.packet_ctor = WebsocketPacket(None, self.comp)
 
         self.authentication = server.authentication = {}
+        self.already_viewed_lotteries = []
 
         self.chat_initialized = False
         self.is_recaptcha_verified = False
@@ -54,7 +55,7 @@ class GamblingSiteWebsocketClient:
 
     def add_user_withdrawal(self, charge, validate=False):
         _, currency, address, amount = charge
-        print(f"creating withdrawal for '{amount} {currency}' {type(amount)}")
+        print(f"creating withdrawal for '{amount} {currency}' {amount}")
         return server.firebase_db.child("withdrawals").child(self.authentication['username']) \
                           .push({
                             "address": address,
@@ -307,11 +308,22 @@ class GamblingSiteWebsocketClient:
                                 }
                         )
                     }))
-                elif active_lottery['game_info']['started_at'] is not None and \
+                elif active_lottery['is_active'] and active_lottery['game_info']['started_at'] is not None and \
                         (time.time() - active_lottery['game_info']['started_at']) > active_lottery['game_info']['start_in']:
                     return self.trans.write(self.packet_ctor.construct_response({
                         "error": "lottery is already in procession"
                         }))
+                elif not active_lottery['is_active'] and active_lottery.get("numbers") is not None:
+                    active_lottery.update({
+                        "numbers": [],
+                        "game_info": {
+                            "started_at": None,
+                            "server_seed": None,
+                            "server_seed": None
+                            },
+                        "enrolled_users": {},
+                        "is_active": False
+                        })
                 
                 for lottery in server.lotteries:
                     if lottery['name'] == name:
@@ -438,7 +450,7 @@ class GamblingSiteWebsocketClient:
                     return self.trans.write(self.packet_ctor.construct_response({
                         "error": "lottery doesn't exist by that name"
                         }))
-                elif (user_obj := lottery['enrolled_users'].get(self.authentication['username'])) is None:
+                elif (user_obj := lottery['enrolled_users'].get(self.authentication['username'])) is None and lottery['is_active']:
                     self.trans.write(self.packet_ctor.construct_response({
                         "error": "you aren't participating in this lottery (heartbeat)"
                         }))
@@ -453,11 +465,15 @@ class GamblingSiteWebsocketClient:
                         }))
 
                 lottery_templ = [lottery_ for lottery_ in server.lotteries if lottery_['name'] == name][0]
+
                 if time.time() >= lottery['game_info']['started_at'] + lottery['game_info']['start_in']:
                     lottery['is_active'] = False
                     lottery['numbers'] = (res := server_utils.generate_n_numbers(
                             lottery_templ['max_tickets'], lottery['game_info']['server_seed']
                             )[0])
+                    if user_obj['tx_id'] in self.already_viewed_lotteries:
+                        return
+                    self.already_viewed_lotteries.append(user_obj['tx_id'])
                     for number in user_obj['numbers']:
                         if number in lottery['numbers']:  # jackpot :)
                             self.trans.write(self.packet_ctor.construct_response({
@@ -481,10 +497,11 @@ class GamblingSiteWebsocketClient:
                                 "addresses": {
                                     "bitcoin": f"from lottery {name!r}"
                                     },
-                                "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                "created_at": (created_at := time.strftime("%Y-%m-%d %H:%M:%S")),
                                 "expires_at": "n/a",
+                                "id": lottery['enrolled_users'][self.authentication['username']]['tx_id'],
                                 "requested_currency": "bitcoin",
-                                }, conv_date=False, validate=True, push=True, meta={
+                                }, conv_date=False, validate=True, meta={
                                     "client-seed": user_obj['seed'],
                                     "client-rolls": user_obj['numbers'],
                                     "server-seed": lottery['game_info']['server_seed'],
@@ -496,13 +513,6 @@ class GamblingSiteWebsocketClient:
                             "warning": "Better luck next time"
                             }))
                     lottery = copy.deepcopy(lottery)
-                    server.active_lotteries[name].update({
-                        "game_info": {
-                            "started_at": None,
-                            "server_seed": None
-                            },
-                        "enrolled_users": {}
-                        })
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
                         "data": self.server.read_file(
@@ -550,12 +560,18 @@ class GamblingSiteWebsocketClient:
                         }))
                 elif (user_obj := lottery['enrolled_users'].get(self.authentication['username'])) is None:
                     self.trans.write(self.packet_ctor.construct_response({
-                        "error": "you aren't participating in this lottery (leaving)"
+                        "action": "do_load",
+                        "data": self.server.read_file(
+                            server_constants.SUPPORTED_WS_EVENTS['reset_lottery'],
+                            format={
+                                "$$lottery": name
+                                }
+                            )
                         }))
                     return self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
                         "data": self.server.read_file(
-                            server_constants.SUPPORTED_WS_EVENTS['reset_lottery'],
+                            server_constants.SUPPORTED_WS_EVENTS['view_lottery'],
                             format={
                                 "$$lottery": name
                                 }
