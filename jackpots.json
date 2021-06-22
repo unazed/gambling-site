@@ -1,0 +1,14 @@
+{
+  "Bronze Jackpot": {
+    "min": 1,
+    "max": 10
+  },
+  "Silver Jackpot": {
+    "min": 10,
+    "max": 25
+  },
+  "Gold Jackpot": {
+    "min": 25,
+    "max": 75
+  }
+}

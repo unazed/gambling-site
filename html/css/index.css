@@ -294,3 +294,16 @@ div#chatbox {
 #lottery-users {
   overflow: auto;
 }
+
+.jackpot-item {
+  flex-direction: column;
+  background-color: rgb(237, 240, 242);
+}
+
+.bet-container {
+  margin-bottom: .45rem;
+}
+
+.jackpot-item-control {
+  position: relative;
+}

@@ -9,7 +9,6 @@ function on_lottery_load(lotteries)
         $("<div class='border p-3'>").append(
           $("<small>").text(lottery['name']).css({
             "font-size": "16px",
-            "text-transform": "uppercase"
           })
         ).css({
           "height": "fit-content",

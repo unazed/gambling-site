@@ -65,10 +65,29 @@ class GamblingSiteWebsocketClient:
                             "validated": validate
                             })
 
+    def get_user_level(self, username=None):
+        xp = self.get_user_by_firebase(username=username)['xp']
+        for idx, xp_acc in enumerate(server_constants.LEVEL_INDICES):
+            if xp < xp_acc:
+                return idx
+
     def remove_user_withdrawal(self, tx_id, username=None):
         print(f"invalidating withdrawal {tx_id=}")
         server.firebase_db.child("withdrawals").child(username or self.authentication['username']) \
                                                .child(tx_id).update({"validated": False})
+
+    def add_user_bet(self, lottery, username=None):
+        username = username or self.authentication['username']
+        print(f"adding bet to {username}'s record")
+        tx_id = lottery['enrolled_users'][username]['tx_id']
+        self.update_user_by_firebase({
+            f"bets/{tx_id}": lottery,
+            }, username=username)
+
+    def add_user_xp(self, amount, username=None):
+        self.update_user_by_firebase({
+            "xp": self.get_user_by_firebase(username=username)['xp'] + amount
+            }, username=username)
 
     def add_user_deposit(self, charge, *, validate=False, meta=None, push=False,
             conv_date=False):
@@ -139,7 +158,6 @@ class GamblingSiteWebsocketClient:
         userkey = [*server.firebase_db.child("users").order_by_child("username")              \
                                       .equal_to(username or self.authentication['username'])  \
                                       .get().val().keys()][0]
-        print("user key", userkey)
         server.firebase_db.child("users").child(userkey).update(data)
 
     def get_user_by_firebase(self, username=None):
@@ -290,6 +308,18 @@ class GamblingSiteWebsocketClient:
                     return self.trans.write(self.packet_ctor.construct_response({
                         "error": "lottery doesn't exist"
                         }))
+
+                for lottery in server.lotteries:
+                    if lottery['name'] == name:
+                        break
+                else:
+                    raise IndexError("lottery in active lotteries, but not in lottery template")
+
+                if self.get_user_level() < lottery['entry_requirements']['min_level']:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "your level is too low to join this lottery"
+                        }))
+
                 active_lottery = server.active_lotteries[name]
                 if active_lottery['is_active'] and self.authentication['username'] in active_lottery['enrolled_users']:
                     return self.trans.write(self.packet_ctor.construct_response({
@@ -324,12 +354,6 @@ class GamblingSiteWebsocketClient:
                         "enrolled_users": {},
                         "is_active": False
                         })
-                
-                for lottery in server.lotteries:
-                    if lottery['name'] == name:
-                        break
-                else:
-                    raise IndexError("lottery in active lotteries, but not in lottery template")
 
                 try:
                     quantity = int(quantity)
@@ -451,9 +475,6 @@ class GamblingSiteWebsocketClient:
                         "error": "lottery doesn't exist by that name"
                         }))
                 elif (user_obj := lottery['enrolled_users'].get(self.authentication['username'])) is None and lottery['is_active']:
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "error": "you aren't participating in this lottery (heartbeat)"
-                        }))
                     return self.trans.write(self.packet_ctor.construct_response({
                         "action": "do_load",
                         "data": self.server.read_file(
@@ -473,6 +494,7 @@ class GamblingSiteWebsocketClient:
                             )[0])
                     if user_obj['tx_id'] in self.already_viewed_lotteries:
                         return
+                    self.add_user_bet(copy.deepcopy(lottery))
                     self.already_viewed_lotteries.append(user_obj['tx_id'])
                     for number in user_obj['numbers']:
                         if number in lottery['numbers']:  # jackpot :)
@@ -507,6 +529,7 @@ class GamblingSiteWebsocketClient:
                                     "server-seed": lottery['game_info']['server_seed'],
                                     "server-rolls": lottery['numbers']
                                     })
+                            self.add_user_xp(lottery_templ['jackpot'] * server_constants.XP_MULTIPLIER)
                             break
                     else:
                         self.trans.write(self.packet_ctor.construct_response({
@@ -533,6 +556,20 @@ class GamblingSiteWebsocketClient:
                         "active": lottery,
                         "templ": [lottery for lottery in server.lotteries if lottery['name'] == name][0]
                         }
+                    }))
+            elif action == "view_jackpot":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to view jackpots"
+                        }))
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "do_load",
+                    "data": self.server.read_file(
+                        server_constants.SUPPORTED_WS_EVENTS['view_jackpot'],
+                        format={
+                            "$$jackpots": str(server.jackpots)
+                            }
+                        )
                     }))
             elif action == "leave_lottery":
                 if not self.authentication:
@@ -1282,9 +1319,7 @@ class GamblingSiteWebsocketClient:
                     amount_deposited = float(charge['pricing']['local']['amount'])
                     xp_gained = server_constants.XP_MULTIPLIER * amount_deposited
                     user_obj = self.get_user_by_firebase()
-                    self.update_user_by_firebase({
-                            "xp": user_obj['xp'] + xp_gained
-                        })
+                    self.add_user_xp(xp_gained)
                     self.validate_deposit(tx_id)
 
                 self.trans.write(self.packet_ctor.construct_response({
@@ -1315,7 +1350,7 @@ class GamblingSiteWebsocketClient:
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "profile_info",
                     "data": {
-                        "level": server_utils.get_level(server_constants.LEVEL_INDICES, user_info['xp']),
+                        "level": self.get_user_level(username=username[0]),
                         **user_info
                         }
                 }))
@@ -1494,6 +1529,14 @@ with open("lotteries.json") as lotteries:
     server.lotteries = json.load(lotteries)
     print("loaded lotteries")
 
+if not os.path.isfile("jackpots.json"):
+    raise IOError("`jackpots.json` doesn't exist")
+
+server.active_jackpots = {}
+with open("jackpots.json") as jackpots:
+    server.jackpots = json.load(jackpots)
+    print("loaded jackpots")
+
 if not os.path.isfile("keys/cryptocompare.key"):
     print("Cryptocompare API key doesn't exist`")
 else:
@@ -1509,6 +1552,17 @@ for lottery in server.lotteries:
                 "started_at": None,
                 "server_seed": None
                 },
+            }
+
+for jackpot in server.jackpots:
+    server.active_jackpots[jackpot] = {
+            "jackpot_uid": None,
+            "enrolled_users": {
+#               "test_user": 10  <bet-amount>
+                },
+            "started_at": None,
+            "start_in": None,
+            "server_seed": None
             }
 
 server.clients = {}

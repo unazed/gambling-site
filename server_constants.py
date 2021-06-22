@@ -17,16 +17,6 @@ def when_authenticated(name, must_have_auth=False):
     return inner
 
 
-def service_item(client, name):
-    if not client.authentication:
-        return SUPPORTED_WS_EVENTS['forbidden']
-    elif name not in SUPPORTED_SERVICES:
-        return SUPPORTED_WS_EVENTS['home']
-    return "events/auth/service.js", {
-        "$$service": f'"{name}"'
-        }
-
-
 def retrieve_profile(client, username):
     if username not in client.server.logins:
         return SUPPORTED_WS_EVENTS['notify'], {
@@ -62,7 +52,8 @@ SUPPORTED_WS_ACTIONS = [
     "join_lottery",
     "lottery_heartbeat",
     "lottery_clientseed",
-    "leave_lottery"
+    "leave_lottery",
+    "view_jackpot"
 ]
 
 RECAPTCHA_MIN_SCORE = 0.5
@@ -73,7 +64,6 @@ SUPPORTED_CURRENCIES = ["bitcoin", "ethereum"]
 SUPPORTED_WS_EVENTS = {
     # Gambling events
     "home": "events/home.js",
-    "service/*": service_item,
     "profile/*": retrieve_profile,
     "navigation": "events/navigation.js",
     "login": "events/login.js",
@@ -88,7 +78,8 @@ SUPPORTED_WS_EVENTS = {
     "show_profile": when_authenticated("show_profile.js", True),
     "view_lottery": when_authenticated("lottery.js", True),
     "join_lottery": when_authenticated("lottery_view.js", True),
-    "reset_lottery": when_authenticated("lottery_clear_interval.js", True)
+    "reset_lottery": when_authenticated("lottery_clear_interval.js", True),
+    "view_jackpot": when_authenticated("view_jackpot.js", True)
 }
 
 MIMETYPES = {
