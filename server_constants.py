@@ -7,7 +7,7 @@ def get_mimetype(name):
     return MIMETYPES.get(name.split(".")[-1], "text/plain")
 
 
-def when_authenticated(name, must_have_auth=False):
+def when_authenticated(name, must_have_auth=True):
     def inner(auth):
         if not auth and not must_have_auth:
             return f"events/{name}"
@@ -53,7 +53,9 @@ SUPPORTED_WS_ACTIONS = [
     "lottery_heartbeat",
     "lottery_clientseed",
     "leave_lottery",
-    "view_jackpot"
+    "view_jackpot",
+    "refresh_jackpot",
+    "join_jackpot"
 ]
 
 RECAPTCHA_MIN_SCORE = 0.5
@@ -74,12 +76,13 @@ SUPPORTED_WS_EVENTS = {
     "forbidden": "events/forbidden.js",
     "chatbox": "events/chatbox.js",
     "notify": "events/notify.js",
-    "wallet": when_authenticated("wallet.js", True),
-    "show_profile": when_authenticated("show_profile.js", True),
-    "view_lottery": when_authenticated("lottery.js", True),
-    "join_lottery": when_authenticated("lottery_view.js", True),
-    "reset_lottery": when_authenticated("lottery_clear_interval.js", True),
-    "view_jackpot": when_authenticated("view_jackpot.js", True)
+    "wallet": when_authenticated("wallet.js"),
+    "show_profile": when_authenticated("show_profile.js"),
+    "view_lottery": when_authenticated("lottery.js"),
+    "join_lottery": when_authenticated("lottery_view.js"),
+    "reset_lottery": when_authenticated("lottery_clear_interval.js"),
+    "view_jackpot": when_authenticated("view_jackpot.js"),
+    "load_jackpot": when_authenticated("load_jackpot.js")
 }
 
 MIMETYPES = {
@@ -95,6 +98,9 @@ UPGRADED_RANK = "upgraded"
 
 LOTTERY_START_TIME = 20
 LOTTERY_USER_JOIN_TIME_BONUS = 10
+
+JACKPOT_START_TIME = 20
+JACKPOT_USER_JOIN_TIME_BONUS = 10
 
 RANK_PROPERTIES = {
     DEFAULT_RANK: {

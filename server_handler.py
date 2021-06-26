@@ -11,6 +11,7 @@ import inspect
 import ipaddress
 import multiprocessing
 import os
+import uuid
 import json
 import string
 import types
@@ -556,6 +557,66 @@ class GamblingSiteWebsocketClient:
                         "active": lottery,
                         "templ": [lottery for lottery in server.lotteries if lottery['name'] == name][0]
                         }
+                    }))
+            elif action == "refresh_jackpot":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to refesh jackpots"
+                        }))
+                jackpots = copy.deepcopy(server.active_jackpots)
+                for name in jackpots:
+                    del jackpots[name]['server_seed']
+                if (name := content.get("name")) is not None:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "action": action,
+                        "data": jackpots[name]
+                        }))
+                return self.trans.write(self.packet_ctor.construct_response({
+                    "action": action,
+                    "data": jackpots
+                    }))
+            elif action == "join_jackpot":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to join jackpot"
+                        }))
+                elif not (jackpot_name := server_utils.ensure_contains(
+                        self, content, ("name",)
+                        )):
+                    return
+                jackpot_name = jackpot_name[0]
+
+                if (jackpot := server.active_jackpots.get(jackpot_name)) is None:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "no such jackpot exists"
+                        }))
+                elif jackpot['jackpot_uid'] is None:
+                    jackpot.update({
+                        'jackpot_uid': str(uuid.uuid1()),
+                        'server_seed': (server_seed := server_utils.generate_server_seed()),
+                        'started_at': time.time(),
+                        'start_in': server_constants.JACKPOT_START_TIME
+                        })
+                else:
+                    jackpot['start_in'] += server_constants.JACKPOT_USER_JOIN_TIME_BONUS
+                    server_seed = jackpot['server_seed']
+
+                print(f"{self.authentication['username']} joined jackpot {jackpot_name!r}")
+                jackpot['enrolled_users'][self.authentication['username']] = None
+
+                jackpot = copy.deepcopy(jackpot)
+                del jackpot['server_seed']
+
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": "do_load",
+                    "data": self.server.read_file(
+                        server_constants.SUPPORTED_WS_EVENTS['load_jackpot'],
+                        format={
+                            "$$jackpot_name": jackpot_name,
+                            "$$jackpot": json.dumps(jackpot),
+                            "$$server_seed": server_utils.hash_server_seed(server_seed)
+                            }
+                        )
                     }))
             elif action == "view_jackpot":
                 if not self.authentication:
