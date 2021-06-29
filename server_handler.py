@@ -1642,6 +1642,12 @@ else:
         server_utils.cryptocompare.cryptocompare._set_api_key_parameter(cryptocompare.read().strip())
         print("loaded Cryptocompare API key")
 
+if not os.path.isfile("keys/firebase_api.json"):
+    raise IOError("Firebase API key doesn't exist")
+
+with open("keys/firebase_api.json") as firebase_api_info:
+    firebase_api_info = json.load(firebase_api_info)
+
 for lottery in server.lotteries:
     server.active_lotteries[lottery['name']] = {
             "is_active": False,
@@ -1667,13 +1673,7 @@ server.clients = {}
 server.last_pinged = {}
 server.message_cache = []
 
-server.firebase = pyrebase.initialize_app({
-  "apiKey": "AIzaSyDFl6ewwUVBiG-tyU5nTPGQhYXupdTUd5I",
-  "authDomain": "gambling-site-c11d0.firebaseapp.com",
-  "storageBucket": "gambling-site-c11d0.appspot.com",
-  "databaseURL": "https://gambling-site-c11d0-default-rtdb.firebaseio.com/",
-  "serviceAccount": "keys/firebase_key.json"
-})
+server.firebase = pyrebase.initialize_app(firebase_api_info)
 server.firebase_auth = server.firebase.auth()
 server.firebase_db = server.firebase.database()
 

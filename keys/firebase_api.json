@@ -1,0 +1,7 @@
+{
+  "apiKey": "AIzaSyDFl6ewwUVBiG-tyU5nTPGQhYXupdTUd5I",
+  "authDomain": "gambling-site-c11d0.firebaseapp.com",
+  "storageBucket": "gambling-site-c11d0.appspot.com",
+  "databaseURL": "https://gambling-site-c11d0-default-rtdb.firebaseio.com/",
+  "serviceAccount": "keys/firebase_key.json"
+}
