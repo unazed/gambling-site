@@ -161,6 +161,17 @@ class GamblingSiteWebsocketClient:
                                       .get().val().keys()][0]
         server.firebase_db.child("users").child(userkey).update(data)
 
+    def add_jackpot_to_archive(self, jackpot):
+        server.firebase_db.child("archived_jackpots").update({
+                jackpot['jackpot_uid']: jackpot
+                })
+
+    def get_jackpot_from_archive(self, uid):
+        jackpots = server.firebase_db.child("archived_jackpots").get().val()
+        if uid not in jackpots:
+            return False
+        return jackpots
+
     def get_user_by_firebase(self, username=None):
         return [*server.firebase_db                         \
                 .child("users")                             \
@@ -575,6 +586,40 @@ class GamblingSiteWebsocketClient:
                     "action": action,
                     "data": jackpots
                     }))
+            elif action == "jackpot_results":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to view jackpot results"
+                        }))
+                elif not (content := server_utils.ensure_contains(
+                        self, content, ("id", "name")
+                        )):
+                    return
+                jackpot_id, jackpot_name = content
+                is_archived = False
+                if (jackpot := server.active_jackpots.get(jackpot_name)) is None:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "no such active jackpot exists"
+                        }))
+                elif jackpot['jackpot_uid'] != jackpot_id:
+                    if not (jackpot := self.get_jackpot_from_archive(jackpot_id)):
+                        return self.trans.write(self.packet_ctor.construct_response({
+                            "error": "no such jackpot exists by that UID"
+                            }))
+                    is_archived = True
+                elif all(amount is None for amount in jackpot['enrolled_users'].values()):
+                    if not is_archived:
+                        self.add_jackpot_to_archive(jackpot)
+                        jackpot['jackpot_uid'] = None
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "info": "the jackpot was empty, therefore nobody won"
+                        }))
+                winner = server_utils.generate_jackpot_winner(jackpot, server.jackpots[jackpot_name])
+                print(winner, "won the", jackpot_name)
+                if not is_archived:
+                    print(f"archiving jackpot {jackpot['jackpot_uid']}")
+                    self.add_jackpot_to_archive(jackpot)
+                    jackpot['jackpot_uid'] = None
             elif action == "join_jackpot":
                 if not self.authentication:
                     return self.trans.write(self.packet_ctor.construct_response({
@@ -584,7 +629,7 @@ class GamblingSiteWebsocketClient:
                         self, content, ("name",)
                         )):
                     return
-                jackpot_name = jackpot_name[0]
+                jackpot_name ,= jackpot_name
 
                 if (jackpot := server.active_jackpots.get(jackpot_name)) is None:
                     return self.trans.write(self.packet_ctor.construct_response({
@@ -918,24 +963,24 @@ class GamblingSiteWebsocketClient:
                 server.logins[username] = {
                     "registration_timestamp": time.strftime("%D %H:%M:%S"),
                     "active_token": (tok := auth_result['idToken']),
-                    "rank": server_constants.DEFAULT_RANK,
                     "email": email
                 }
 
                 db_ref = server.firebase_db.child("users").push({
                     "username": username,
                     "email": email,
-#                   "transactions": [],
-#                   "deposits": [],
                     "cleared": 0,
                     "xp": 0,
+                    "lottery": {
+                        "points": 0,
+                        "history": {}
+                        }
                 })
 
                 self.authentication = {
                     "username": username,
                     "email": email,
                     "token": tok,
-                    "rank": server_constants.DEFAULT_RANK
                 }
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "registered",
@@ -1040,7 +1085,6 @@ class GamblingSiteWebsocketClient:
                     self.authentication = {
                         "username": username,
                         "token": tok,
-                        "rank": userinfo['rank']
                     }
                     print(f"{username!r} logged in via token")
                     self.broadcast_message({
@@ -1121,7 +1165,6 @@ class GamblingSiteWebsocketClient:
                 self.authentication = {
                     "username": username,
                     "token": tok,
-                    "rank": userinfo['rank']
                 }
                 self.server.logins[username].update({
                     "active_token": tok
@@ -1415,6 +1458,10 @@ class GamblingSiteWebsocketClient:
                         **user_info
                         }
                 }))
+            else:
+                self.trans.write(self.packet_ctor.construct_response({
+                    "error": f"unimplemented action {action!r}"
+                    }))
         else:
             print("received weird opcode, closing for inspection",
                     hex(data['opcode']))

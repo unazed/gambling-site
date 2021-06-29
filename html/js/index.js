@@ -144,6 +144,8 @@ function handle_ws_message(event) {
   let content = JSON.parse(event.data);
   if (content.error) {
     display_notif(content.error, "error");
+  } else if (content.info) {
+    display_notif(content.info, "info");
   } else if (content.action === "do_load") {
     jQuery.globalEval(content.data);  /* is this shady? */
   } else if (content.action === "registered") {
@@ -202,6 +204,10 @@ function handle_ws_message(event) {
   } else if (content.action === "lottery_heartbeat") { 
     if (typeof on_lottery_update !== "undefined") {
       on_lottery_update(content.data);
+    }
+  } else if (content.action === "refresh_jackpot") {
+    if (typeof on_jackpot_refresh !== "undefined") {
+      on_jackpot_refresh(content.data);
     }
   } else if (content.warning) {
     display_notif(content.warning, "warning");

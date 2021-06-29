@@ -55,7 +55,9 @@ SUPPORTED_WS_ACTIONS = [
     "leave_lottery",
     "view_jackpot",
     "refresh_jackpot",
-    "join_jackpot"
+    "join_jackpot",
+    "jackpot_results",
+    "place_bet"
 ]
 
 RECAPTCHA_MIN_SCORE = 0.5

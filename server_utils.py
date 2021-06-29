@@ -12,6 +12,7 @@ with open("filtered-words.txt") as filtered:
 
 
 def generate_server_seed():
+    random.seed()
     return int(1e10 * random.random())
 
 
@@ -21,7 +22,21 @@ def hash_server_seed(seed):
 
 def generate_n_numbers(n, seed):
     random.seed(seed or (seed := random.randint(1, 1e15)))
-    return (tuple(random.randint(1, 10) for _ in range(n)), seed)
+    _ = (tuple(random.randint(1, 10) for _ in range(n)), seed)  # ??? FIXME
+    random.seed()
+    return _
+
+
+def generate_jackpot_winner(jackpot, jackpot_templ):
+    random.seed(jackpot['server_seed'])
+    proportion = []
+    for user, amount in jackpot['enrolled_users'].items():
+        if amount is None:
+            continue
+        proportion.extend([user] * (amount - jackpot_templ['min']))
+    result = random.choice(proportion)
+    random.seed()
+    return result
 
 
 def get_crypto_prices(markets, timestamp=None):
