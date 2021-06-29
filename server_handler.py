@@ -1525,16 +1525,6 @@ def unsupported_handler(metadata, code=None):
             )
         })
 
-@server.route("GET", "/pseudo-file", get_params=["fid"], subdomain=["www"],
-        enforce_params=True)
-def pseudo_file(metadata, fid):
-    server.send_file(metadata, "pseudo-file.html", format={
-        "{data}": str(server.pseudo_files[fid])
-        }, headers={
-                "Content-Type": "application/octet-stream",
-                "Content-Disposition": f'filename="{fid}"'
-            })
-
 @server.route("websocket", "/ws-gambling", subdomain=["www"])
 def gambling_site_websocket_handler(headers, idx, extensions, prot, addr, data):
     print("registering new Gambling Site websocket transport")
@@ -1676,7 +1666,6 @@ for jackpot in server.jackpots:
 server.clients = {}
 server.last_pinged = {}
 server.message_cache = []
-server.pseudo_files = {}
 
 server.firebase = pyrebase.initialize_app({
   "apiKey": "AIzaSyDFl6ewwUVBiG-tyU5nTPGQhYXupdTUd5I",
