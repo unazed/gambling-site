@@ -47,6 +47,7 @@ class GamblingSiteWebsocketClient:
 
         self.authentication = server.authentication = {}
         self.already_viewed_lotteries = []
+        self.enrolled_jackpots = {}
 
         self.chat_initialized = False
         self.is_recaptcha_verified = False
@@ -73,6 +74,8 @@ class GamblingSiteWebsocketClient:
                 return idx
 
     def remove_user_withdrawal(self, tx_id, username=None):
+        if tx_id is None:
+            return
         print(f"invalidating withdrawal {tx_id=}")
         server.firebase_db.child("withdrawals").child(username or self.authentication['username']) \
                                                .child(tx_id).update({"validated": False})
@@ -162,6 +165,8 @@ class GamblingSiteWebsocketClient:
         server.firebase_db.child("users").child(userkey).update(data)
 
     def add_jackpot_to_archive(self, jackpot):
+        if jackpot['jackpot_uid'] is None:
+            return  # already archived likely
         server.firebase_db.child("archived_jackpots").update({
                 jackpot['jackpot_uid']: jackpot
                 })
@@ -607,6 +612,10 @@ class GamblingSiteWebsocketClient:
                             "error": "no such jackpot exists by that UID"
                             }))
                     is_archived = True
+                elif jackpot['started_at'] is None:
+                    return  # less than 2 players have bet
+                elif time.time() < jackpot['started_at'] + jackpot['start_in']:
+                    return
                 elif all(amount is None for amount in jackpot['enrolled_users'].values()):
                     if not is_archived:
                         self.add_jackpot_to_archive(jackpot)
@@ -614,12 +623,52 @@ class GamblingSiteWebsocketClient:
                     return self.trans.write(self.packet_ctor.construct_response({
                         "info": "the jackpot was empty, therefore nobody won"
                         }))
+                elif sum(amount is not None for amount in jackpot['enrolled_users'].values()) < 2:
+                    jackpot['started_at'] = None
+                    return
+                del self.enrolled_jackpots[jackpot_name]
                 winner = server_utils.generate_jackpot_winner(jackpot, server.jackpots[jackpot_name])
                 print(winner, "won the", jackpot_name)
                 if not is_archived:
                     print(f"archiving jackpot {jackpot['jackpot_uid']}")
                     self.add_jackpot_to_archive(jackpot)
+                    if self.authentication['username'] == winner:
+                        self.trans.write(self.packet_ctor.construct_response({
+                            "success": f"you won the {jackpot_name} jackpot!"
+                            }))
+                    total_won = sum(amount for amount in jackpot['enrolled_users'].values() if amount is not None)
+                    self.add_user_deposit({
+                        "pricing": {
+                            "local": {
+                                "amount": total_won,
+                                    "currency": "USD"
+                                    },
+                                "ethereum": {
+                                    "amount": server_utils.usd_to_crypto(total_won, "ethereum"),
+                                    "currency": "ETH"
+                                    },
+                                "bitcoin": {
+                                    "amount": server_utils.usd_to_crypto(total_won, "bitcoin"),
+                                    "currency": "BTC"
+                                    }
+                                },
+                            "addresses": {
+                                "bitcoin": f"from jackpot {jackpot_name!r}"
+                                },
+                            "created_at": (created_at := time.strftime("%Y-%m-%d %H:%M:%S")),
+                            "expires_at": "n/a",
+                            "id": jackpot['jackpot_uid'],
+                            "requested_currency": "bitcoin",
+                            }, conv_date=False, validate=True, meta={
+                                "server-seed": jackpot['server_seed'],
+                                "winner": winner
+                                })
                     jackpot['jackpot_uid'] = None
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": action,
+                    "winner": winner,
+                    "seed": jackpot['server_seed']
+                    }))
             elif action == "join_jackpot":
                 if not self.authentication:
                     return self.trans.write(self.packet_ctor.construct_response({
@@ -639,7 +688,7 @@ class GamblingSiteWebsocketClient:
                     jackpot.update({
                         'jackpot_uid': str(uuid.uuid1()),
                         'server_seed': (server_seed := server_utils.generate_server_seed()),
-                        'started_at': time.time(),
+                        'started_at': None,
                         'start_in': server_constants.JACKPOT_START_TIME
                         })
                 else:
@@ -868,6 +917,10 @@ class GamblingSiteWebsocketClient:
                     "action": "load_wallet",
                     "data": {
                         "cleared": user_obj['cleared'],
+                        "balance": {
+                            "btc": self.get_balance("bitcoin"),
+                            "eth": self.get_balance("ethereum")
+                            },
                         "market_prices": market_prices,
                         "withdraw": {
                             "net-volume": withdraw_volume,
@@ -1434,6 +1487,58 @@ class GamblingSiteWebsocketClient:
                         "state": ("waiting", "pending confirmations", "completed")[state]
                         }
                     }))
+            elif action == "place_bet":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to place bets"
+                        }))
+                elif not (content := server_utils.ensure_contains(
+                        self, content, ("name", "amount")
+                        )):
+                    return
+                jackpot_name, bet_amount = content
+
+                if (jackpot := server.active_jackpots.get(jackpot_name)) is None:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "no such jackpot exists"
+                        }))
+                elif self.authentication['username'] not in jackpot['enrolled_users']:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "you aren't participating in this jackpot"
+                        }))
+
+                try:
+                    bet_amount = float(bet_amount)
+                except ValueError:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "invalid quantity amount"
+                        }))
+
+                if not (deductible := server_utils.is_sufficient_funds(self, bet_amount)):
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "insufficient funds to place this bet"
+                        }))
+                elif (previous_bet := self.enrolled_jackpots.get(jackpot_name)) is not None:
+                    self.remove_user_withdrawal(previous_bet['btc_tx'])
+                    self.remove_user_withdrawal(previous_bet['eth_tx'])
+                self.enrolled_jackpots[jackpot_name] = {"btc_tx": None, "eth_tx": None}
+                if (btc_amount := deductible['btc']):
+                    btc_tx_id = self.add_user_withdrawal(
+                            ("", "bitcoin", "SERVER", btc_amount),
+                            validate=True)['name']
+                    self.enrolled_jackpots[jackpot_name]['btx_tx'] = btc_tx_id
+                    print(f"deducting {btc_amount:.5f} BTC for jackpot bet")
+                if (eth_amount := deductible['eth']):
+                    eth_tx_id = self.add_user_withdrawal(
+                            ("", "ethereum", "SERVER", eth_amount),
+                            validate=True)['name']
+                    print(f"deducting {btc_amount:.5f} ETH for jackpot bet")
+                    self.enrolled_jackpots[jackpot_name]['eth_tx'] = eth_tx_id
+                jackpot['enrolled_users'][self.authentication['username']] = bet_amount
+                if sum(amount is not None for amount in jackpot['enrolled_users'].values()) == 2:
+                    jackpot['started_at'] = time.time()
+                elif sum(amount is not None for amount in jackpot['enrolled_users'].values()) <= 1:
+                    jackpot['started_at'] = None
             elif action == "profile_info":
                 if not self.authentication:
                     self.trans.write(self.packet_ctor.construct_response({

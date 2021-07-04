@@ -27,13 +27,31 @@ def generate_n_numbers(n, seed):
     return _
 
 
+def is_sufficient_funds(client, amount):
+    btc_amount = usd_to_crypto(amount, "bitcoin")
+    eth_amount = usd_to_crypto(amount, "ethereum")
+
+    btc_balance = client.get_balance("bitcoin")
+    eth_balance = client.get_balance("ethereum")
+    
+    if btc_balance < btc_amount:
+        eth_amount = usd_to_crypto(crypto_to_usd(btc_amount - btc_balance, "BTC"), "ethereum")
+    else:
+        return {"btc": btc_amount, "eth": 0}
+
+    if eth_balance < eth_amount:
+        return False
+
+    return {"btc": btc_balance, "eth": eth_amount}
+
+
 def generate_jackpot_winner(jackpot, jackpot_templ):
     random.seed(jackpot['server_seed'])
     proportion = []
     for user, amount in jackpot['enrolled_users'].items():
         if amount is None:
             continue
-        proportion.extend([user] * (amount - jackpot_templ['min']))
+        proportion.extend([user] * (int(amount) - int(jackpot_templ['min'])))
     result = random.choice(proportion)
     random.seed()
     return result

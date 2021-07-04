@@ -6,13 +6,9 @@ var is_confirmed = false;
 function on_wallet(wallet_info) {
   deposit_info = wallet_info.deposit;
   withdraw_info = wallet_info.withdraw;
-  total_btc_balance = deposit_info['per-market-volume']['bitcoin']
-    - withdraw_info['per-market-volume']['bitcoin'];
-  total_eth_balance = deposit_info['per-market-volume']['ethereum']
-    - withdraw_info['per-market-volume']['ethereum'];
 
-  btc_usd = total_btc_balance * wallet_info.market_prices['BTC']['USD']
-  eth_usd = total_eth_balance * wallet_info.market_prices['ETH']['USD']
+  btc_usd = wallet_info.balance.btc * wallet_info.market_prices['BTC']['USD']
+  eth_usd = wallet_info.balance.eth * wallet_info.market_prices['ETH']['USD']
 
   $("#wallet").empty().append(`
 <div id="wallet-info" class="p-3 mb-2">
@@ -21,7 +17,7 @@ function on_wallet(wallet_info) {
 `);
 
   $("#wallet-info").append(
-    $("<span>").text("Bitcoin: " + total_btc_balance + ", Ethereum: " + total_eth_balance),
+    $("<span>").text("Bitcoin: " + wallet_info.balance.btc + ", Ethereum: " + wallet_info.balance.btc),
     $("<span>").text("Net total: $" + ( ( (btc_usd + eth_usd) * 100 ) << 0 ) / 100)
   );
 

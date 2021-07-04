@@ -186,6 +186,10 @@ function handle_ws_message(event) {
     if (typeof on_transaction_created !== "undefined") {
       on_transaction_created(content.data);
     }
+  } else if (content.action === "jackpot_results) {
+    if (typeof on_jackpot_finish !== "undefined") {
+      on_jackpot_finish(content);
+    }
   } else if (content.action === "check_transaction") {
     if (typeof on_transaction_event !== "undefined") {
       on_transaction_event(content.data);

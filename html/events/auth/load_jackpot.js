@@ -1,6 +1,18 @@
+var user_colormap = {};
+
 function on_jackpot_refresh(jackpot)
 {
+  console.log(jackpot);
   load_jackpot(jackpot);
+}
+
+function on_jackpot_finish(results)
+{
+  $("#place-bet-btn").prop("disabled", true);
+  setTimeout(function() {
+
+  }, 1000);
+  console.log(results);
 }
 
 function load_jackpot(jackpot)
@@ -11,27 +23,29 @@ function load_jackpot(jackpot)
    * started_at: 1624916170.79311
    */
 
-  var current_timestamp = (new Date / 1000) >> 0;
-  var time_since_start  = current_timestamp - jackpot['started_at'];
-  if (time_since_start > jackpot['start_in'])
+  if (jackpot['started_at'] !== null)
   {
-    $("#wait-time-completed").css({"flex-grow": 0});
-    clearInterval(window.jackpot_refresh);
-    return window.ws.send(JSON.stringify({
-      action: "jackpot_results",
-      id: jackpot['jackpot_uid'],
-      name: "$$jackpot_name"
-    }));
+    var current_timestamp = (new Date / 1000) >> 0;
+    var time_since_start  = current_timestamp - jackpot['started_at'];
+    if (time_since_start > jackpot['start_in'])
+    {
+      $("#wait-time-completed").css({"flex-grow": 0});
+      clearInterval(window.jackpot_refresh);
+      return window.ws.send(JSON.stringify({
+        action: "jackpot_results",
+        id: jackpot['jackpot_uid'],
+        name: "$$jackpot_name"
+      }));
+    }
+    $("#wait-time-completed").css({
+      "flex-grow": 1 - time_since_start / jackpot['start_in']
+    });
   }
-  $("#wait-time-completed").css({
-    "flex-grow": 1 - time_since_start / jackpot['start_in']
-  });
 
   $("#jackpot-bet-userlist").empty();
   
   var total_jackpot = 0;
   var total_users = 0;
-  var user_colormap = {};
 
   console.log(jackpot['enrolled_users']);
 
@@ -44,14 +58,21 @@ function load_jackpot(jackpot)
 
   for (const [username, bet_amount] of Object.entries(jackpot['enrolled_users']))
   {
-    var color = "#" + Math.floor(Math.random()*16777215).toString(16) ;
-    user_colormap[username] = color;
+    console.log(user_colormap, username);
+    if (user_colormap[username] !== undefined)
+    {
+      var color = user_colormap[username];
+    } else
+    {
+      var color = "#" + Math.floor(Math.random()*16777215).toString(16) ;
+      user_colormap[username] = color;
+    }
      $("#jackpot-bet-userlist").append(`
     <div class="jackpot-user-bet"
         style="
           flex-grow: ` + (bet_amount / total_jackpot) + `;
           background-color: ` + color + `;
-          height: 0.7em;
+          height: 1em;
           ">
     </div>
       `);
@@ -71,7 +92,7 @@ reset_state();
 $("#main_container").empty().append(`
 <p class="lead p-3">$$jackpot_name</p>
 <div id="jackpot-bet-visual" class="d-flex flex-column flex-grow border ml-2 mr-2">
-  <div id="jackpot-bet-userlist" class="d-flex flex-grow ml-2 mr-2">
+  <div id="jackpot-bet-userlist" class="d-flex flex-grow">
     <small class='text-muted m-3'>loading bets...</small>
   </div>
   <div id="wait-time" class="d-flex flex-grow-1"
@@ -126,6 +147,7 @@ $("#server-seed").val("$$server_seed");
 $("#place-bet-btn").click(function() {
   window.ws.send(JSON.stringify({
     action: "place_bet",
+    name: "$$jackpot_name",
     amount: $("#bet-amount").val()
   }));
   $(this).prop("disabled", true);
