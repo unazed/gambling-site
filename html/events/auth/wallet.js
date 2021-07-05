@@ -302,7 +302,7 @@ function on_transactions_loaded(transactions)
       $("<td>").text(transaction['pricing']['local']['amount'] + " " +
           transaction['pricing']['local']['currency']),
       $("<td>").text(transaction['addresses'][transaction['requested_currency']])
-    ));
+    ).css({"border": "red"}));
   }
 
   for (const tx_id in transactions.withdrawals)
@@ -310,9 +310,13 @@ function on_transactions_loaded(transactions)
     transaction = transactions.withdrawals[tx_id];
     $("#wallet-with-tbody").append($("<tr>").append(
       $("<td>").text(transaction['created_at']),
-      $("<td>").text(transaction['local_amount'] + " USD"),
+      $("<td>").text(transaction['pricing']['local'] + " USD"),
       $("<td>").text(transaction['address'])
-    ));
+    ).css(transaction.validated? {
+      "border": "green",
+    }: {
+      "border": "red"
+    }));
   }
 }
 

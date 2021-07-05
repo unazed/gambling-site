@@ -1,18 +1,42 @@
 var user_colormap = {};
+var current_bet = null;
 
 function on_jackpot_refresh(jackpot)
 {
-  console.log(jackpot);
   load_jackpot(jackpot);
+}
+
+function on_jackpot_bet(bet)
+{
+  /*
+   * amount:
+   *  local, btc, eth
+   */
+
+  $("#place-bet-btn").text("Modify bet");
+  current_bet = bet['amount']['local'];
 }
 
 function on_jackpot_finish(results)
 {
-  $("#place-bet-btn").prop("disabled", true);
-  setTimeout(function() {
+  /*
+   * winner, seed, self
+   */
 
-  }, 1000);
-  console.log(results);
+  $("#place-bet-btn").prop("disabled", true);
+  $("#server-seed").val(results.seed);
+  if (results['self'])
+  {
+    display_notif("You won the jackpot, congrats!", "success");
+  } else
+  {
+    display_notif(results.winner + " won, try again next time", "error");
+  }
+  setTimeout(function() {
+    window.ws.send(JSON.stringify({
+      action: "view_jackpot"
+    }))
+  }, 2000);
 }
 
 function load_jackpot(jackpot)
@@ -43,12 +67,14 @@ function load_jackpot(jackpot)
   }
 
   $("#jackpot-bet-userlist").empty();
-  
+  $("#jackpot-bets").empty().append(
+    $("<p class='lead'>").text("Bet list")
+      .css({"text-align": "center"})
+  );
+
   var total_jackpot = 0;
   var total_users = 0;
-
-  console.log(jackpot['enrolled_users']);
-
+  
   for (const [_, bet_amount] of Object.entries(jackpot['enrolled_users']))
   {
     if (bet_amount === null) { continue; }
@@ -58,13 +84,12 @@ function load_jackpot(jackpot)
 
   for (const [username, bet_amount] of Object.entries(jackpot['enrolled_users']))
   {
-    console.log(user_colormap, username);
     if (user_colormap[username] !== undefined)
     {
       var color = user_colormap[username];
     } else
     {
-      var color = "#" + Math.floor(Math.random()*16777215).toString(16) ;
+      var color = "#000000".replace(/0/g,function(){return (~~(Math.random()*16)).toString(16);});
       user_colormap[username] = color;
     }
      $("#jackpot-bet-userlist").append(`
@@ -76,7 +101,19 @@ function load_jackpot(jackpot)
           ">
     </div>
       `);
+
+    if (bet_amount !== null)
+    {
+      $("#jackpot-bets").append($("<small class='text-muted ml-2 pl-1'>").text(username + ": $" + bet_amount).css({
+        "border-left": ".5em solid" + color
+      }));
+    }
   }
+
+  $("#jackpot-info").empty().append([
+    $("<small>").text("The total jackpot is $" + total_jackpot + ", but the house takes 5%, so you'd win $" + (((total_jackpot * 95) >> 0) / 100)),
+    (current_bet !== null && total_users > 1)? $("<small>").text("Your chance of winning is " + ( ((current_bet / total_jackpot * 10000) >> 0) / 100 ) + "%") : ""
+  ]);
 
   if (!total_users)
   {
@@ -85,6 +122,10 @@ function load_jackpot(jackpot)
     ));
   }
 
+  if (!total_jackpot)
+  {
+    $("#jackpot-bets").append($("<small class='m-3 text-muted'>").text("No bets active"));
+  }
 }
 
 reset_state();
@@ -105,7 +146,7 @@ $("#main_container").empty().append(`
   </div>
 </div>
 <div id="jackpot-container" class="d-flex mt-3">
-  <div id="jackpot-bets" class="d-flex flex-column border ml-2">
+  <div id="jackpot-bets" class="d-flex flex-column border ml-2 p-2">
     <small class='text-muted m-3'>loading bet list...</small>
   </div>
   <div id="jackpot-control" class="flex-grow-1 ml-3 mr-3">
@@ -134,7 +175,7 @@ $("#main_container").empty().append(`
       </div>
 
     </div>
-    <div id="jackpot-info">
+    <div id="jackpot-info" class="d-flex flex-column">
       <small class='text-muted m-3'>loading active bet info...</small>
     </div>
   </div>
@@ -156,11 +197,12 @@ $("#place-bet-btn").click(function() {
   }, 1000);
 });
 
+clearInterval(window.jackpot_refresh);
+
 window.jackpot_refresh = setInterval(function() {
   if (!$("#jackpot-container").length) {
     return clearInterval(window.jackpot_refresh);
   }
-  console.log("refreshing");
   window.ws.send(JSON.stringify({
     action: "refresh_jackpot",
     name: "$$jackpot_name"

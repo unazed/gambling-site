@@ -1,14 +1,24 @@
 from html import escape
-import cryptocompare
 import hashlib
 import json
 import random
+import copy
 import requests
 from server_api.websocket_interface import WebsocketPacket
 
 
+COINMARKETCAP_KEY = None
+COINMARKETCAP_BASE_URL = "https://pro-api.coinmarketcap.com"
+
+
 with open("filtered-words.txt") as filtered:
     filtered = [*map(str.strip, filtered)]
+
+
+def get_coinmarketcap_result(path, *args, **kwargs):
+    return requests.get(COINMARKETCAP_BASE_URL + path, *args, **kwargs, headers={
+        "X-CMC_PRO_API_KEY": COINMARKETCAP_KEY
+        }).json()
 
 
 def generate_server_seed():
@@ -47,28 +57,39 @@ def is_sufficient_funds(client, amount):
 
 def generate_jackpot_winner(jackpot, jackpot_templ):
     random.seed(jackpot['server_seed'])
+    jackpot = copy.deepcopy(jackpot)
+    jackpot['enrolled_users'] = sorted((user, amount) for user, amount in jackpot['enrolled_users'].items())
     proportion = []
-    for user, amount in jackpot['enrolled_users'].items():
+    for user, amount in jackpot['enrolled_users']:
         if amount is None:
             continue
-        proportion.extend([user] * (int(amount) - int(jackpot_templ['min'])))
+        proportion.extend([user] * (int(amount) - int(jackpot_templ['min']) + 1))
     result = random.choice(proportion)
-    random.seed()
     return result
 
 
-def get_crypto_prices(markets, timestamp=None):
+def get_crypto_prices(markets):
+    result = {}
+    if isinstance(markets, str):
+        markets = [markets]
     for idx, market in enumerate(markets):
         if market == "bitcoin":
             markets[idx] = "BTC"
+            market = "BTC"
         elif market == "ethereum":
             markets[idx] = "ETH"
-    if timestamp is None:
-        return cryptocompare.get_price(markets, currency='USD')
-    elif isinstance(markets, list):
-        return {market: cryptocompare.get_historical_price(market, currency='USD', timestamp=timestamp) for market in markets}
-    return cryptocompare.get_historical_price(markets, currency='USD', timestamp=timestamp)
-
+            market = "ETH"
+        try:
+            response = get_coinmarketcap_result("/v1/tools/price-conversion", params={
+                "amount": 1,
+                "symbol": market,
+                "convert": "USD"
+                })
+            result[market] = response['data']['quote']
+            result[market]['USD'] = result[market]['USD']['price']
+        except KeyError:
+            print(response)
+    return result
 
 def get_recaptcha_response(recaptcha_privkey, token):
     return requests.post("https://www.google.com/recaptcha/api/siteverify", data={
@@ -85,12 +106,22 @@ def crypto_to_usd(amount, crypto):
     return amount * get_crypto_prices([crypto])[crypto]['USD']
 
 
+CRYPTO_PRICE_CACHE = {}
+
+
 def usd_to_crypto(amount, crypto, timestamp=None):
     if crypto == "bitcoin":
         crypto = "BTC"
     elif crypto == "ethereum":
         crypto = "ETH"
-    return amount / get_crypto_prices(crypto)[crypto]["USD"]
+    price = get_crypto_prices(crypto)
+    if price is not None:
+        CRYPTO_PRICE_CACHE[crypto] = price
+    else:
+        if crypto not in CRYPTO_PRICE_CACHE:
+            raise ValueError("failed to retrieve cryptocurrency prices")
+        return amount / CRYPTO_PRICE_CACHE[crypto][crypto]["USD"]
+    return amount / price[crypto]["USD"]
 
 
 def ensure_contains(self, data, keys):

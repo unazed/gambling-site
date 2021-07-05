@@ -26,6 +26,7 @@ if ($$username && !$("a#nav-username").get().length) {
   );
   $("#nav-login").parent().hide();
   $("#nav-register").parent().hide();
+  $("#title").text("Pots Bet (" + $$username + ")");
 } else if (!$$username && (nav = $("a#nav-username")).get().length) {
   nav.parent().remove();
   $("a#nav-logout").parent().remove();
