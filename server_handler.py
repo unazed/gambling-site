@@ -70,6 +70,9 @@ class GamblingSiteWebsocketClient:
                             "validated": validate
                             })
 
+    def get_user_lottery_points(self, username=None):
+        return self.get_user_by_firebase(username=username)['lottery']['points']
+
     def get_user_level(self, username=None):
         xp = self.get_user_by_firebase(username=username)['xp']
         for idx, xp_acc in enumerate(server_constants.LEVEL_INDICES):
@@ -88,12 +91,37 @@ class GamblingSiteWebsocketClient:
         print(f"adding bet to {username}'s record")
         tx_id = lottery['enrolled_users'][username]['tx_id']
         self.update_user_by_firebase({
-            f"bets/{tx_id}": lottery,
+            f"lottery/history/{tx_id}": lottery,
             }, username=username)
 
+    def add_user_lottery_points(self, amount, username=None):
+        if amount > 0:
+            self.trans.write(self.packet_ctor.construct_response({
+                "info": f"You've gained {amount} lottery points"
+                }))
+        self.update_user_by_firebase({
+            "lottery/points": self.get_user_by_firebase(username=username)['lottery']['points'] + amount
+            }, username=username)
+
+    def add_user_jackpot(self, jackpot, username=None):
+        self.update_user_by_firebase({
+            f"jackpot/{jackpot['jackpot_uid']}": jackpot
+            }, username=username)
+
+    def get_user_xp(self, username=None):
+        return self.get_user_by_firebase(username=username)['xp']
+
     def add_user_xp(self, amount, username=None):
+        self.trans.write(self.packet_ctor.construct_response({
+            "info": f"You've gained {amount} XP"
+            }))
         self.update_user_by_firebase({
             "xp": self.get_user_by_firebase(username=username)['xp'] + amount
+            }, username=username)
+
+    def add_user_cleared(self, amount, username=None):
+        self.update_user_by_firebase({
+            "cleared": self.get_user_by_firebase()['cleared'] + amount
             }, username=username)
 
     def add_user_deposit(self, charge, *, validate=False, meta=None, push=False,
@@ -388,26 +416,15 @@ class GamblingSiteWebsocketClient:
                         "error": "quantity requested to be bought exceeds lottery limits"
                         }))
                 
-                btc_price = quantity * server_utils.usd_to_crypto(lottery['entry_requirements']['usd_price'], "bitcoin")
-                eth_price = quantity * server_utils.usd_to_crypto(lottery['entry_requirements']['usd_price'], "ethereum")
+                lottery_points = self.get_user_lottery_points()
+                cost = lottery['entry_requirements']['lottery_points'] * quantity
 
-                btc_balance = self.get_balance("bitcoin")
-                eth_balance = self.get_balance("ethereum")
-
-                if btc_balance < btc_price and eth_balance < eth_price:                 # avoid calculating if user can afford quantity using
-                    return self.trans.write(self.packet_ctor.construct_response({       # both BTC + ETH for the time being
-                        "error": "you can't afford this many tickets"
+                if lottery_points < cost:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "you don't have enough lottery points to join"
                         }))
-                elif eth_balance >= eth_price:
-                    print(f"purchasing {eth_price} ETH of tickets (x{quantity}) for {name}")
-                    tx_id = self.add_user_withdrawal(("", "ethereum", "SERVER", eth_price), validate=True)['name']
-                elif btc_balance >= btc_price:
-                    print(f"purchasing {btc_price} BTC of tickets (x{quantity}) for {name}")
-                    tx_id = self.add_user_withdrawal(("", "bitcoin", "SERVER", btc_price), validate=True)['name']
-
-                self.update_user_by_firebase({
-                    "cleared": self.get_user_by_firebase()['cleared'] + quantity * lottery['entry_requirements']['usd_price']
-                    })
+                self.add_user_lottery_points(-cost)
+                tx_id = str(uuid.uuid1())
 
                 print(f"{self.authentication['username']} joined {name}")
 
@@ -515,6 +532,10 @@ class GamblingSiteWebsocketClient:
                             )[0])
                     if user_obj['tx_id'] in self.already_viewed_lotteries:
                         return
+                    lottery.update({
+                        "lottery_name": name,
+                        "winnings": lottery_templ['jackpot']
+                        })
                     self.add_user_bet(copy.deepcopy(lottery))
                     self.already_viewed_lotteries.append(user_obj['tx_id'])
                     for number in user_obj['numbers']:
@@ -538,7 +559,7 @@ class GamblingSiteWebsocketClient:
                                         }
                                     },
                                 "addresses": {
-                                    "bitcoin": nam
+                                    "bitcoin": name
                                     },
                                 "created_at": (created_at := time.strftime("%Y-%m-%d %H:%M:%S")),
                                 "expires_at": "n/a",
@@ -635,8 +656,20 @@ class GamblingSiteWebsocketClient:
                     del self.enrolled_jackpots[jackpot_name]
                 except KeyError:
                     return
-                print(self.enrolled_jackpots, jackpot)
                 winner = server_utils.generate_jackpot_winner(jackpot, server.jackpots[jackpot_name])
+
+                jackpot_save = copy.deepcopy(jackpot)
+                jackpot_save.update({
+                    "jackpot_uid": server_utils.generate_jackpot_uid(jackpot['server_seed'], jackpot_name),
+                    "jackpot_name": jackpot_name,
+                    "winner": winner
+                    })
+
+                self.add_user_jackpot(jackpot_save)
+                self.add_user_cleared(jackpot['enrolled_users'][self.authentication['username']])
+                self.add_user_xp(jackpot['enrolled_users'][self.authentication['username']] * server_constants.XP_MULTIPLIER)
+                self.add_user_lottery_points(server.jackpots[jackpot_name]['points'])
+
                 print(winner, "won the", jackpot_name)
                 if not is_archived:
                     self.add_jackpot_to_archive(jackpot)
@@ -782,11 +815,9 @@ class GamblingSiteWebsocketClient:
                         "error": "you can't leave the lottery with 10 seconds on the clock"
                         }))
                 lottery_templ = [lottery_ for lottery_ in server.lotteries if lottery_['name'] == name][0]
-                self.remove_user_withdrawal(lottery['enrolled_users'][self.authentication['username']]['tx_id'])
-                self.update_user_by_firebase({
-                    "cleared": self.get_user_by_firebase()['cleared'] - \
-                            user_obj['quantity'] * lottery_templ['entry_requirements']['usd_price']
-                    })
+                
+                # TODO: remove lottery points
+
                 del lottery['enrolled_users'][self.authentication['username']]
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "do_load",
@@ -1530,14 +1561,16 @@ class GamblingSiteWebsocketClient:
                         "error": "quantity isn't in bounds"
                         }))
 
+                if (previous_bet := self.enrolled_jackpots.get(jackpot_name)) is not None:
+                    print("reinstating bet amount, previous bet was", previous_bet)
+                    self.remove_user_withdrawal(previous_bet['btc_tx'])
+                    self.remove_user_withdrawal(previous_bet['eth_tx'])
+                
                 if not (deductible := server_utils.is_sufficient_funds(self, bet_amount)):
                     return self.trans.write(self.packet_ctor.construct_response({
                         "error": "insufficient funds to place this bet"
                         }))
-                elif (previous_bet := self.enrolled_jackpots.get(jackpot_name)) is not None:
-                    print("reinstating bet amount, previous bet was", previous_bet)
-                    self.remove_user_withdrawal(previous_bet['btc_tx'])
-                    self.remove_user_withdrawal(previous_bet['eth_tx'])
+
                 self.enrolled_jackpots[jackpot_name] = {"btc_tx": None, "eth_tx": None}
                 if (btc_amount := deductible['btc']):
                     btc_tx_id = self.add_user_withdrawal(
@@ -1566,25 +1599,25 @@ class GamblingSiteWebsocketClient:
                     }))
             elif action == "profile_info":
                 if not self.authentication:
-                    self.trans.write(self.packet_ctor.construct_response({
-                        "action": "do_load",
-                        "data": self.server.read_file(
-                            server_constants.SUPPORTED_WS_EVENTS['forbidden']
-                        )
-                    }))
-                    return
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "you must be logged in to view profile info"
+                        }))
                 elif not (username := server_utils.ensure_contains(
                         self, content, ("username",)
                         )):
                     return
+                print("called")
                 user_info = self.get_user_by_firebase(username[0])
                 if user_info['username'] != self.authentication['username']:
                     for sensitive_key in server_constants.SENSITIVE_USER_KEYS:
                         del user_info[sensitive_key]
+                level = self.get_user_level(username=username[0])
+                xp = self.get_user_xp(username=username[0])
                 self.trans.write(self.packet_ctor.construct_response({
-                    "action": "profile_info",
+                    "action": action,
                     "data": {
-                        "level": self.get_user_level(username=username[0]),
+                        "level": level,
+                        "next_level_dist": server_constants.LEVEL_INDICES[level] - xp,
                         **user_info
                         }
                 }))

@@ -9,31 +9,15 @@
     <title id="title">Pots Bet (not logged in)</title>
   </head>
   <body>
-    <!-- Google Firebase & analytics -->
-    <script src="https://www.gstatic.com/firebasejs/8.6.2/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.6.2/firebase-analytics.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.6.2/firebase-firestore.js"></script>
-
     <!-- reCAPTCHA v3 -->
     <script src="https://www.google.com/recaptcha/api.js?render=6LclcyUbAAAAALvjjxT5jPnnm4AXDYcJzeI6ZrNS"></script>
 
-    <script>
-      var firebaseConfig = {
-        apiKey: "AIzaSyDFl6ewwUVBiG-tyU5nTPGQhYXupdTUd5I",
-        authDomain: "gambling-site-c11d0.firebaseapp.com",
-        projectId: "gambling-site-c11d0",
-        storageBucket: "gambling-site-c11d0.appspot.com",
-        messagingSenderId: "744868340607",
-        appId: "1:744868340607:web:af7627a3e83fd2f5bb304a",
-        measurementId: "G-S0ZRN5QJWJ"
-      };
-      firebase.initializeApp(firebaseConfig);
-      firebase.analytics();
-      var db = firebase.firestore();
-    </script>
-
     <div id="error_div" class="text-dark">
     </div>
+
+    <noscript>
+      This website requires JavaScript to be enabled, apologies for any inconveniences.
+    </noscript>
 
     <nav class="navbar navbar-expand-lg navbar-light text-dark bg-light border-bottom">
       <a class="navbar-brand border-right" href="#">Gambling Site</a>
@@ -64,7 +48,7 @@
       <div id="chatbox" class="d-none flex-column bg-light text-dark h-100 border">
         <div id="chat-info-container">
           <div id="user-list-container" class="chat-subcontainer bg-light text-dark">
-            <small class="form-text text-muted">Userlist</small>
+            <small class="form-text" style="color: hsl(208deg 7% 25%);">Userlist</small>
             <ul id="user-list" class="list-group list-group-flush">
               <li class="list-group-item text-muted">
                 loading users...

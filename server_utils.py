@@ -55,6 +55,11 @@ def is_sufficient_funds(client, amount):
     return {"btc": btc_balance, "eth": eth_amount}
 
 
+def generate_jackpot_uid(seed, name):
+    random.seed(seed)
+    return ''.join(chr(random.randint(97, 122)) for _ in range(16))
+
+
 def generate_jackpot_winner(jackpot, jackpot_templ):
     random.seed(jackpot['server_seed'])
     jackpot = copy.deepcopy(jackpot)

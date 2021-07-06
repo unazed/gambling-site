@@ -6,6 +6,7 @@ var TYPES = {
 }
 
 var last_ping = +new Date;
+var username_profile = null;
 window.lottery_intervals = {};
 
 function is_mobile() {
@@ -29,6 +30,81 @@ function reset_state() {
 
 window.reset_state = reset_state;
 
+function on_profile(resp) {
+  reset_state();
+  $("#main_container").empty().append(`
+  <div class="container d-flex flex-column" id="profile-container">
+    <div id="level" class="d-flex flex-column border flex-grow border-bottom-0 p-3 mt-3">
+      <small class='text-muted m-3'>loading username & level...</small>
+    </div>
+    <div class="d-flex border p-3 border-top-0">
+      <div id="jackpots" class="d-flex flex-column flex-grow-1">
+        <small class="text-muted">loading jackpot history</small>
+      </div>
+      <div id="lotteries" class="flex-grow-1">
+        <small class="text-muted">loading lottery history</small>
+      </div>
+    </div>
+  </div>
+  `);
+  $("#level").empty().append(
+    $("<p class='lead ml-3'>").text(resp.username),
+    $("<div class='d-flex flex-grow'>").append(
+      $("<div>").css({
+        "flex-grow": resp.xp / (resp.xp + resp.next_level_dist),
+        "background-color": "#00ff6b59",
+        "height": "1em"
+      }),
+      $("<div>").css({
+        "flex-grow": 1 - resp.xp / (resp.xp + resp.next_level_dist),
+        "height": "1em",
+        "background-color": "gainsboro"
+      })
+    ),
+    $("<div class='d-flex position-relative'>").append(
+      $("<small class='text-muted mt-1 ml-1'>").text(resp.next_level_dist + " XP left to level " + (resp.level + 1)),
+      $("<small class='text-muted'>").text(resp.xp + "/" + (resp.xp + resp.next_level_dist))
+        .css({
+          "position": "absolute",
+          "right": ".25em",
+          "top": ".25em"
+        })
+    )
+  );
+
+  $("#jackpots").empty().append(
+    $("<table class='table table-sm' id='jackpot-table'>").append(
+      $("<thead>").append(
+        $("<tr>").append(
+          $("<th scope='col'>").text("Date"),
+          $("<th scope='col'>").text("Jackpot Name"),
+          $("<th scope='col'>").text("Bet"),
+          $("<th scope='col'>").text("Seed"),
+          $("<th scope='col'>").text("Winner")
+        )
+      ),
+      $("<tbody>")
+    )
+  );
+
+  for (const [_, jackpot] of Object.entries(resp.jackpot))
+  {
+    var jackpot_date = new Date(jackpot.started_at * 1000).toLocaleDateString("en-US");
+    $("#jackpot-table tbody").append(
+      $("<tr>").append(
+        $("<td>").text(jackpot_date),
+        $("<td>").text(jackpot.jackpot_name),
+        $("<td>").text("$" + jackpot.enrolled_users[username_profile]),
+        $("<td>").text(jackpot.server_seed),
+        $("<td>").text(jackpot.winner)
+      )
+    );
+  }
+  if (!Object.keys(resp.jackpot).length)
+  {
+    $("#jackpots").append($("<small class='text-muted'>").text("No jackpots have been entered"));
+  }
+}
 function display_notif(message, type) {
   $("#error_div").append(
     $("<p></p>").text(message).prepend(
@@ -53,9 +129,6 @@ function display_notif(message, type) {
 
 window.display_notif = display_notif;
 
-function on_public_profile(user) {
-}
-
 var last_clicked_user = null;
 
 function display_user_info(user_info) {
@@ -65,6 +138,7 @@ function display_user_info(user_info) {
     $("<label>").text("XP: " + user_info.xp_count + ", "
                     + "Level: " + user_info.level),
     $("<a class='link-primary'>").text("View profile").click(function() {
+      username_profile = user_info.username;
       window.ws.send(JSON.stringify({
         action: "profile_info",
         username: user_info.username

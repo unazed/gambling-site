@@ -112,7 +112,8 @@ function load_jackpot(jackpot)
 
   $("#jackpot-info").empty().append([
     $("<small>").text("The total jackpot is $" + total_jackpot + ", but the house takes 5%, so you'd win $" + (((total_jackpot * 95) >> 0) / 100)),
-    (current_bet !== null && total_users > 1)? $("<small>").text("Your chance of winning is " + ( ((current_bet / total_jackpot * 10000) >> 0) / 100 ) + "%") : ""
+    (current_bet !== null && total_users > 1)? $("<small>").text("Your chance of winning is " + ( ((current_bet / total_jackpot * 10000) >> 0) / 100 ) + "%") : "",
+    (current_bet !== null)? $("<small>").text("Regardless of whether you win or not, you will win " + current_bet * 2.5 + " XP and $" + current_bet + " into clearing"): ""
   ]);
 
   if (!total_users)

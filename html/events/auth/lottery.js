@@ -17,7 +17,7 @@ function on_lottery_load(lotteries)
         }),
         $("<div>").append(
           $("<div class='border p-3'>").append(
-            $("<small>").text("entry: $" + lottery.entry_requirements.usd_price),
+            $("<small>").text("entry: " + lottery.entry_requirements.lottery_points + " point(s)"),
             $("<small class='ml-3'>").text("minimum level: " + lottery.entry_requirements.min_level),
             $("<small class='ml-3'>").text("max tickets: " + lottery.max_tickets),
             (!is_mobile())? 

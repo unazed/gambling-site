@@ -29,7 +29,7 @@ function load_jackpots(jackpots)
       `);
     $("#" + jackpot_name.replace(" ", "\\ ") + " .jackpot-item-control button").click(function() {
       $(this).prop("disabled", true);
-      setTimeout(function() { $("#" + jackpot_name.replace(" ", "\\ ") + " .jackpot-item-control button").prop("disabled", false); }, 1000);
+//      setTimeout(function() { $("#" + jackpot_name.replace(" ", "\\ ") + " .jackpot-item-control button").prop("disabled", false); }, 1000);
       window.ws.send(JSON.stringify({
         action: "join_jackpot",
         name: jackpot_name

@@ -1,14 +1,17 @@
 {
   "Bronze Jackpot": {
     "min": 1,
-    "max": 10
+    "max": 10,
+    "points": 5
   },
   "Silver Jackpot": {
     "min": 10,
-    "max": 25
+    "max": 25,
+    "points": 10
   },
   "Gold Jackpot": {
     "min": 25,
-    "max": 75
+    "max": 75,
+    "points": 20
   }
 }

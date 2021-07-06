@@ -151,13 +151,13 @@ SUBDOMAIN_MAP = {
 
 ALLOWED_FOLDERS = {
     "html/css": {
-        "Cache-Control": "nostore"
+        "Cache-Control": "max-age=86400"
         },
     "html/js": {
-        "Cache-Control": "nostore"
+        "Cache-Control": "max-age=86400"
         },
     "html/img": {
-        "Cache-Control": "nostore",
+        "Cache-Control": "max-age=86400",
         "__read_params": {
             "mode": "rb"
             }
