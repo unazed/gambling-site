@@ -121,9 +121,11 @@ class GamblingSiteWebsocketClient:
 
     def add_user_cleared(self, amount, username=None):
         self.update_user_by_firebase({
-            "cleared": self.get_user_by_firebase()['cleared'] + amount
+            "cleared": (total := self.get_user_by_firebase()['cleared'] + amount)
             }, username=username)
-
+        self.trans.write(self.packet_ctor.construct_response({
+            "info": f"You can now withdraw ${total}"
+            }))
     def add_user_deposit(self, charge, *, validate=False, meta=None, push=False,
             conv_date=False, username=None):
         if not push:
@@ -664,9 +666,13 @@ class GamblingSiteWebsocketClient:
                     "jackpot_name": jackpot_name,
                     "winner": winner
                     })
-
                 self.add_user_jackpot(jackpot_save)
-                self.add_user_cleared(jackpot['enrolled_users'][self.authentication['username']])
+
+                jackpot_total = sum(amount for amount in jackpot['enrolled_users'].values() if amount is not None)
+                if self.authentication['username'] == winner:
+                    self.add_user_cleared(jackpot_total)
+                else:
+                    self.add_user_cleared(jackpot['enrolled_users'][self.authentication['username']])
                 self.add_user_xp(jackpot['enrolled_users'][self.authentication['username']] * server_constants.XP_MULTIPLIER)
                 self.add_user_lottery_points(server.jackpots[jackpot_name]['points'])
 
@@ -879,16 +885,23 @@ class GamblingSiteWebsocketClient:
                 users = server.firebase_db.child("users").order_by_child("username").get().val()
                 if users is None:
                     userlist = []
+                    userdata = {}
                 else:
-                    userlist = list(map(
+                    userlist = [list(map(
                         lambda user: user['username'],
                         users.values()
-                        ))
+                        ))][0]
+                    userdata = {username: {
+                        "xp_count": self.get_user_xp(username),
+                        "level": self.get_user_level(username),
+                        "username": username
+                        } for username in userlist}
                 if self.authentication:
                     server.last_pinged[self.authentication['username']] = time.time()
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "userlist",
                     "userlist": userlist,
+                    "userdata": userdata,
                     "last_pinged": server.last_pinged
                     }))
             elif action == "load_wallet":
