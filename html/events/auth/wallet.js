@@ -7,8 +7,8 @@ function on_wallet(wallet_info) {
   deposit_info = wallet_info.deposit;
   withdraw_info = wallet_info.withdraw;
 
-  btc_usd = wallet_info.balance.btc * wallet_info.market_prices['BTC']['USD']
-  eth_usd = wallet_info.balance.eth * wallet_info.market_prices['ETH']['USD']
+  btc_usd = wallet_info.balance.btc * wallet_info.market_prices['BTC']['USD'];
+  eth_usd = wallet_info.balance.eth * wallet_info.market_prices['ETH']['USD'];
 
   $("#wallet").empty().append(`
 <div id="wallet-info" class="p-3 mb-2">
@@ -28,6 +28,9 @@ function on_wallet(wallet_info) {
     <div class="input-group mb-3">
       <input type="text" id="rx-tx-amount" class="form-control" placeholder="amount to withdraw">
       <span class="input-group-text" id="price-suffix">BTC</span>
+      <div class="input-group-append">
+        <button class="btn btn-outline-primary" type="button" id="convert-usd-btn">convert from USD</button>
+      </div>
     </div>
 
     <div class="input-group mb-3">
@@ -119,6 +122,17 @@ function on_wallet(wallet_info) {
   is_withdraw_state = true;
   is_bitcoin_state = true;
 
+  $("#convert-usd-btn").click(function() {
+    const amount = +$("#rx-tx-amount").val();
+    if (is_bitcoin_state)
+    {
+      $("#rx-tx-amount").val(amount / wallet_info.market_prices['BTC']['USD']);
+    } else
+    {
+      $("#rx-tx-amount").val(amount / wallet_info.market_prices['ETH']['USD']);
+    }
+  });
+
   $("#ethereum-radio").parent().click(function() {
     if (!is_bitcoin_state) { return; }
     is_bitcoin_state = false;
@@ -185,7 +199,8 @@ function on_wallet(wallet_info) {
               type: "withdrawal",
               currency: is_bitcoin_state? "bitcoin": "ethereum",
               receive_address: address,
-              amount: amount
+              amount: amount,
+              usd_amount: is_bitcoin_state? amount * wallet_info.market_prices['BTC']['USD']: amount * wallet_info.market_prices['ETH']['USD']
             }));
             display_notif("withdrawal request has been submitted, waiting for server confirmation...", "success")
           } else /* deposit state */
@@ -196,7 +211,8 @@ function on_wallet(wallet_info) {
               type: "deposit",
               currency: is_bitcoin_state? "bitcoin": "ethereum",
               receive_address: address,
-              amount: amount
+              amount: amount,
+              usd_amount: is_bitcoin_state? amount * wallet_info.market_prices['BTC']['USD']: amount * wallet_info.market_prices['ETH']['USD']
             }));
             display_notif("deposit request has been submitted, waiting for server confirmation...", "info");
             setTimeout(function() {

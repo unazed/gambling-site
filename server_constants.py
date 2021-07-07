@@ -155,7 +155,7 @@ ALLOWED_FOLDERS = {
         "Cache-Control": "max-age=86400"
         },
     "html/js": {
-        "Cache-Control": "max-age=86400"
+        "Cache-Control": "nostore"
         },
     "html/img": {
         "Cache-Control": "max-age=86400",

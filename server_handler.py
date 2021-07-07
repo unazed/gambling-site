@@ -57,7 +57,7 @@ class GamblingSiteWebsocketClient:
         self.__data_buffer = ""
 
     def add_user_withdrawal(self, charge, validate=False):
-        _, currency, address, amount = charge
+        _, currency, address, amount, _ = charge
         print(f"creating withdrawal for '{amount} {currency}' {amount}")
         return server.firebase_db.child("withdrawals").child(self.authentication['username']) \
                           .push({
@@ -1391,7 +1391,7 @@ class GamblingSiteWebsocketClient:
                     }))
                     return
                 elif not (content := server_utils.ensure_contains(
-                        self, content, ("type", "currency", "receive_address", "amount")
+                        self, content, ("type", "currency", "receive_address", "amount", "usd_amount")
                         )):
                     pass
                 elif not self.is_recaptcha_verified:
@@ -1399,7 +1399,7 @@ class GamblingSiteWebsocketClient:
                         "error": "reCAPTCHA v3 not succeeded"
                         }))
                 self.is_recaptcha_verified = False
-                type_, currency, recv_addr, amount = content
+                type_, currency, recv_addr, amount, usd_amount = content
 
                 try:
                     amount = float(amount)
@@ -1439,8 +1439,8 @@ class GamblingSiteWebsocketClient:
 
                 if type_ == "withdrawal":
                     cleared_amount = self.get_user_by_firebase()['cleared']
-                    balance = self.get_balance_usd()
-                    if amount > cleared_amount:
+                    balance = self.get_balance(currency)
+                    if usd_amount > cleared_amount:
                         return self.trans.write(self.packet_ctor.construct_response({
                             "error": "not enough cleared funds to withdraw this amount"
                             }))
