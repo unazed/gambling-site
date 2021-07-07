@@ -147,6 +147,7 @@ WHITELISTED_RANGES = [*map(ip_network, [
 
 SUBDOMAIN_MAP = {
     "www": "html/",
+    "admin": "admin/"
     }
 
 ALLOWED_FOLDERS = {
@@ -161,6 +162,12 @@ ALLOWED_FOLDERS = {
         "__read_params": {
             "mode": "rb"
             }
+        },
+    "admin/js": {
+        "Cache-Control": "nostore"
+        },
+    "admin/css": {
+        "Cache-Control": "nostore"
         }
     }
 

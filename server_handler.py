@@ -25,6 +25,7 @@ import server_utils
 import server_api.websocket_interface
 from server_api.https_server import HttpsServer
 from server_api.websocket_interface import WebsocketPacket, CompressorSession
+from admin_handler import AdminWebsocketClient
 
 
 class GamblingSiteWebsocketClient:
@@ -163,6 +164,18 @@ class GamblingSiteWebsocketClient:
     def get_deposit(self, id_, username=None):
         return server.firebase_db.child("deposits").child(username  \
                 or self.authentication['username']).child(id_).get().val()
+
+    def get_balance_usd(self, username=None):
+        total = 0
+        for deposit in self.get_deposits(username=username).values():
+            if not deposit['validated']:
+                continue
+            total += float(deposit['pricing']['local']['amount'])
+        for withdrawal in self.get_withdrawals() or []:
+            if not withdrawal['validated']:
+                continue
+            total -= withdrawal['pricing']['local']
+        return total
 
     def get_balance(self, market="bitcoin", username=None):
         total = 0
@@ -1426,9 +1439,14 @@ class GamblingSiteWebsocketClient:
 
                 if type_ == "withdrawal":
                     cleared_amount = self.get_user_by_firebase()['cleared']
+                    balance = self.get_balance_usd()
                     if amount > cleared_amount:
                         return self.trans.write(self.packet_ctor.construct_response({
                             "error": "not enough cleared funds to withdraw this amount"
+                            }))
+                    elif amount > balance:
+                        return self.trans.write(self.packet_ctor.construct_response({
+                            "error": "you don't have enough funds to create this withdrawal"
                             }))
                     self.add_user_withdrawal(content)
                     self.trans.write(self.packet_ctor.construct_response({
@@ -1695,9 +1713,25 @@ server = HttpsServer(
 def index_handler(metadata):
     server.send_file(metadata, "index.html")
 
-@server.route("GET", "/unsupported", get_params=["code"], subdomain="*")
+@server.route("websocket", "/ws-admin", subdomain=["admin"])
+def admin_websocket_handler(headers, idx, extensions, prot, addr, data):
+    print("registering new Gambling Site websocket transport")
+    if idx not in server.admin_clients:
+        server.admin_clients[idx] = AdminWebsocketClient(
+            headers, extensions, server, prot.trans, addr
+        )
+    prot.on_data_received = server.admin_clients[idx]
+    prot.on_connection_lost = server.admin_clients[idx].on_close
+    prot.on_data_received(prot.trans, addr, data)
+
+
+@server.route("GET", "/", subdomain=["admin"])
+def admin_panel_handler(metadata):
+    return server.send_file(metadata, "index.html")
+
+@server.route("GET", "/unsupported", get_params=["code"], subdomain=["www"])
 def unsupported_handler(metadata, code=None):
-    server.send_file(metadata, "unsupported.html", format={
+    return server.send_file(metadata, "unsupported.html", format={
         "{error}": server_constants.ERROR_CODES.get(code,
             "The server hasn't specified a reason."
             )
@@ -1848,6 +1882,8 @@ for jackpot in server.jackpots:
             }
 
 server.clients = {}
+server.admin_clients = {}
+
 server.last_pinged = {}
 server.message_cache = []
 

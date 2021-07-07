@@ -2,6 +2,7 @@
 # pylint: disable=missing-class-docstring
 from urllib.parse import urlparse, parse_qsl
 from http.cookies import SimpleCookie
+from multidict import MultiDict, CIMultiDict
 from html import escape
 import base64
 import hashlib
@@ -20,9 +21,15 @@ _print = print
 
 
 def print(*args, **kwargs):  # pylint: disable=redefined-builtin
-    prev_fn = inspect.currentframe().f_back.f_code.co_name
-    _print(f"[{time.strftime('%H:%M:%S')}] [HttpsServer] [{prev_fn}]",
+    curframe = inspect.currentframe().f_back
+    prev_fn = curframe.f_code.co_name
+    line_no = curframe.f_lineno
+    class_name = ""
+    if (inst := curframe.f_locals.get("self")) is not None:
+        class_name = f" [{inst.__class__.__name__}]"
+    _print(f"[{time.strftime('%H:%M:%S')}] :{line_no} [ServerHandler]{class_name} [{prev_fn}]",
            *args, **kwargs)
+
 
 
 def proxy_print(arg):
@@ -110,7 +117,7 @@ class HttpsServer(SocketServer):
             raise OSError(f"{root_directory!r} doesn't exist")
         self.root_directory = root_directory
         self.callbacks = callbacks or {}
-        self.routes = {}
+        self.routes = MultiDict()
         self.subdomain_map = subdomain_map
 
         self.websocket_clients = []
@@ -129,6 +136,11 @@ class HttpsServer(SocketServer):
                 route.update({"path": uri.path})
                 return (route, dict(parse_qsl(uri.query)))
             return (None, None)
+        if subdomain is not None:
+            possible_routes = self.routes.getall(uri.path)
+            for info in possible_routes:
+                if subdomain in info['subdomain']:
+                    return (info, dict(parse_qsl(uri.query)))
         return (self.routes[uri.path], dict(parse_qsl(uri.query)))
 # </editor-fold>
 # <editor-fold route
@@ -136,8 +148,8 @@ class HttpsServer(SocketServer):
               ignore_redundant_params=True, enforce_params=True,
               protocol_handler=None, subdomain=None):
         def create_route(function):
-            print(f"registered {path!r}")
-            self.routes[path] = {  # no same-name different-subdomains
+            print(f"registered {'(' + ', '.join(subdomain) + '):' if subdomain is not None else ''}{path}")
+            self.routes.add(path, {  # no same-name different-subdomains
                 "methods": methods if isinstance(methods, (list, tuple))
                                    else [methods],
                 "function": function,
@@ -150,7 +162,7 @@ class HttpsServer(SocketServer):
                     },
                 "path": path,
                 "subdomain": [subdomain] if isinstance(subdomain, str) else subdomain
-                }
+                })
         return create_route
 # </editor-fold>
 # <editor-fold on_data_received
@@ -179,7 +191,12 @@ class HttpsServer(SocketServer):
             cookies[k] = v.value
 
         # retrieve and error-check route validity
-        route, query_string = self.retrieve_route(method['path'])
+        *subdomain, host, tld = headers['Host'].split(".")
+        if not subdomain:
+            subdomain = None
+        else:
+            subdomain = subdomain[0]
+        route, query_string = self.retrieve_route(method['path'], subdomain=subdomain)
         if route is None:  # pylint: disable=no-else-return
             print(f"route {method['path'][:20]!r} not found")
             server.trans.write(self.construct_response("Not Found",
@@ -431,7 +448,7 @@ class HttpsServer(SocketServer):
         except ValueError:
             return False
 
-        header_dict = {}
+        header_dict = CIMultiDict()
         for header in headers:
             try:
                 field, value = header.split(":", maxsplit=1)

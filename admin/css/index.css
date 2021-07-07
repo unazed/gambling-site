@@ -1,0 +1,8 @@
+#body-container {
+  height: 98.4vh;
+  background-color: #f8f9fa;
+}
+
+#notification-sidebar {
+  max-width: 23vh;
+}
