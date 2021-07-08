@@ -483,12 +483,12 @@ class HttpsServer(SocketServer):
     def read_file(self, name, default=None, format=None, read_kwargs={}):
         if isinstance(name, types.FunctionType):
             name = name(self)
-        if not os.path.isfile(path := f"{self.root_directory}/{name}"):
+        if not os.path.isfile(name):
             if default is None:
                 return ""
             with open(f"{self.root_directory}/{default}", **read_kwargs) as out:
                 return out.read()
-        with open(path, **read_kwargs) as out:
+        with open(name, **read_kwargs) as out:
             data = out.read()
             if isinstance(format, dict):
                 for k, v in format.items():

@@ -6,3 +6,36 @@
 #notification-sidebar {
   max-width: 23vh;
 }
+
+#user-list-container {
+  min-width: 17vh;
+  max-width: 20vh;
+}
+
+#content-container {
+  overflow: hidden;
+}
+
+#user-options {
+  height: 93.6vh;
+}
+
+.user-action {
+  border-bottom: 1px solid rgb(222, 226, 230);
+}
+
+.user-action-active {
+  background-color: rgb(222 226 230 / 60%);
+}
+
+.user-selected {
+  background-color: rgb(222 226 230 / 60%);
+}
+
+.withdrawal-selected {
+  background-color: rgb(222 226 230 / 60%);
+}
+
+.deposit-selected {
+  background-color: rgb(222 226 230 / 60%);
+}

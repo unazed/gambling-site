@@ -10,10 +10,10 @@ def get_mimetype(name):
 def when_authenticated(name, must_have_auth=True):
     def inner(auth):
         if not auth and not must_have_auth:
-            return f"events/{name}"
+            return f"html/events/{name}"
         elif not auth:
             return SUPPORTED_WS_EVENTS['forbidden']
-        return f"events/auth/{name}"
+        return f"html/events/auth/{name}"
     return inner
 
 
@@ -68,17 +68,17 @@ SUPPORTED_CURRENCIES = ["bitcoin", "ethereum"]
 
 SUPPORTED_WS_EVENTS = {
     # Gambling events
-    "home": "events/home.js",
+    "home": "html/events/home.js",
     "profile/*": retrieve_profile,
-    "navigation": "events/navigation.js",
-    "login": "events/login.js",
-    "login_fail": "events/input_fail.js",
-    "register": "events/register.js",
-    "register_fail": "events/input_fail.js",
-    "logout": "events/logout.js",
-    "forbidden": "events/forbidden.js",
-    "chatbox": "events/chatbox.js",
-    "notify": "events/notify.js",
+    "navigation": "html/events/navigation.js",
+    "login": "html/events/login.js",
+    "login_fail": "html/events/input_fail.js",
+    "register": "html/events/register.js",
+    "register_fail": "html/events/input_fail.js",
+    "logout": "html/events/logout.js",
+    "forbidden": "html/events/forbidden.js",
+    "chatbox": "html/events/chatbox.js",
+    "notify": "html/events/notify.js",
     "wallet": when_authenticated("wallet.js"),
     "show_profile": when_authenticated("show_profile.js"),
     "view_lottery": when_authenticated("lottery.js"),
@@ -152,13 +152,13 @@ SUBDOMAIN_MAP = {
 
 ALLOWED_FOLDERS = {
     "html/css": {
-        "Cache-Control": "max-age=86400"
+        "Cache-Control": "nostore"
         },
     "html/js": {
         "Cache-Control": "nostore"
         },
     "html/img": {
-        "Cache-Control": "max-age=86400",
+        "Cache-Control": "nostore",
         "__read_params": {
             "mode": "rb"
             }

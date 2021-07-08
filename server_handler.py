@@ -17,6 +17,7 @@ import string
 import types
 
 from coinbase_commerce.client import Client as CoinbaseClient
+import coinbase_commerce
 import pyrebase
 pyrebase.pyrebase.raise_detailed_error = lambda *args, **kwargs: None
 
@@ -57,7 +58,10 @@ class GamblingSiteWebsocketClient:
         self.__data_buffer = ""
 
     def add_user_withdrawal(self, charge, validate=False):
-        _, currency, address, amount, _ = charge
+        try:
+            _, currency, address, amount, _ = charge
+        except ValueError:
+            _, currency, address, amount = charge
         print(f"creating withdrawal for '{amount} {currency}' {amount}")
         return server.firebase_db.child("withdrawals").child(self.authentication['username']) \
                           .push({
@@ -190,7 +194,10 @@ class GamblingSiteWebsocketClient:
                 continue
             elif withdrawal['currency'] != market:
                 continue
-            total -= withdrawal['pricing'][market]
+            amount = withdrawal['pricing'][market]
+            if isinstance(amount, str):
+                amount = float(amount)
+            total -= amount
         return total
 
     def get_deposits(self, username=None):
@@ -333,6 +340,7 @@ class GamblingSiteWebsocketClient:
                     **format
                 })
                 if not data:
+                    print(event_name, event)
                     self.trans.write(self.packet_ctor.construct_response({
                         "warning": f"{event_name!r} unimplemented"
                     }))
@@ -677,6 +685,8 @@ class GamblingSiteWebsocketClient:
                 jackpot_save.update({
                     "jackpot_uid": server_utils.generate_jackpot_uid(jackpot['server_seed'], jackpot_name),
                     "jackpot_name": jackpot_name,
+                    "jackpot": sum(amount for amount in jackpot['enrolled_users'].values() if amount is not None) \
+                                    * server_constants.JACKPOT_HOUSE_PERC,
                     "winner": winner
                     })
                 self.add_user_jackpot(jackpot_save)
@@ -968,7 +978,9 @@ class GamblingSiteWebsocketClient:
                     market = withdrawal['currency']
                     if market not in markets:
                         continue
-                    amount = withdrawal['pricing'][market] 
+                    amount = withdrawal['pricing'][market]
+                    if isinstance(amount, str):
+                        amount = float(amount)
                     per_market_withdrawal_sum[market] += amount
                     withdraw_volume += amount
                     per_market_withdrawals[market].append({
@@ -1514,7 +1526,17 @@ class GamblingSiteWebsocketClient:
                             }
                         }))
 
-                charge = server.coinbase_client.charge.retrieve(tx_id)
+                try:
+                    charge = server.coinbase_client.charge.retrieve(tx_id)
+                except coinbase_commerce.error.ResourceNotFoundError:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "action": "check_transaction",
+                        "data": {
+                            "id": tx_id,
+                            "pricing": local_charge['pricing'][local_charge['requested_currency']],
+                            "state": "waiting"
+                            }
+                        }))
 
                 state = 0   # 0: WAITING, 1: PENDING, 2: COMPLETED
                 for event in charge['timeline']:
@@ -1698,7 +1720,7 @@ if __name__ != "__main__":
     raise RuntimeError("this file cannot be imported, it must be run at the top level")
 
 server = HttpsServer(
-    root_directory="html/",
+    root_directory="./",
     host="0.0.0.0", port=8443,
     cert_chain=".ssl/gambling-site.crt",
     priv_key=".ssl/gambling-site.key",
@@ -1711,7 +1733,7 @@ server = HttpsServer(
 
 @server.route("GET", "/", subdomain=["www"])
 def index_handler(metadata):
-    server.send_file(metadata, "index.html")
+    server.send_file(metadata, "html/index.html")
 
 @server.route("websocket", "/ws-admin", subdomain=["admin"])
 def admin_websocket_handler(headers, idx, extensions, prot, addr, data):
@@ -1727,11 +1749,11 @@ def admin_websocket_handler(headers, idx, extensions, prot, addr, data):
 
 @server.route("GET", "/", subdomain=["admin"])
 def admin_panel_handler(metadata):
-    return server.send_file(metadata, "index.html")
+    return server.send_file(metadata, "admin/index.html")
 
 @server.route("GET", "/unsupported", get_params=["code"], subdomain=["www"])
 def unsupported_handler(metadata, code=None):
-    return server.send_file(metadata, "unsupported.html", format={
+    return server.send_file(metadata, "html/unsupported.html", format={
         "{error}": server_constants.ERROR_CODES.get(code,
             "The server hasn't specified a reason."
             )
@@ -1769,7 +1791,7 @@ def wildcard_handler(metadata):
                            "doesn't exist</p>"
                 ))
             return
-        server.send_file(metadata, f"../{'/'.join(path)}", headers={
+        server.send_file(metadata, f"{'/'.join(path)}", headers={
             "content-type": server_constants.get_mimetype(file),
             **headers
         }, do_minify=False,
@@ -1791,7 +1813,7 @@ def wildcard_handler(metadata):
         headers = {}
         if isinstance((hdrs := server_constants.ALLOWED_FILES[file]), dict):
             headers = dict(filter(lambda i: not i[0].startswith("__"), hdrs.items()))
-        server.send_file(metadata, f"../{path}", headers={
+        server.send_file(metadata, f"{path}", headers={
             "content-type": server_constants.get_mimetype(file),
             **headers
         }, do_minify=False,

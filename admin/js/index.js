@@ -18,6 +18,12 @@ const ACTION = {
     load: function(data) {
       jQuery.globalEval(data.data);
       return event_main();
+    },
+    callback: function(data) {
+      return EVENT_CALLBACKS[data['name']](data['data']);
+    },
+    pong: function() {
+      /* pretty much do nothing */
     }
   };
 
@@ -54,6 +60,7 @@ $(window).on("load", function() {
   }
 
   window.feed = new WebSocket("wss://" + window.location.host + "/ws-admin");
+  window.ping = null;
 
   window.feed.onerror = function() {
     return notify("error", "Failed to connect to websocket feed to websocket feed");
@@ -61,10 +68,19 @@ $(window).on("load", function() {
 
   window.feed.onopen = function() {
     notify("success", "Established websocket connection with server");
-    post_message({action: "identify"});
+    notify("info", "Starting heartbeat interval");
+    window.ping = setInterval(function() {
+      return post_message({action: "ping"});
+    }, 5000);
+    return post_message({action: "identify"});
   }
 
   window.feed.onmessage = function(e) {
     return handle_feed_message(JSON.parse(e.data));
+  }
+
+  window.feed.onclose = function() {
+    clearInterval(window.ping);
+    return notify("error", "Websocket feed closed");
   }
 });

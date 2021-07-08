@@ -3,7 +3,8 @@ import time
 import inspect
 import server_api
 from server_api.websocket_interface import WebsocketPacket, CompressorSession
-
+from server_utils import get_level
+from server_constants import LEVEL_INDICES
 
 _print = print
 
@@ -109,7 +110,7 @@ class AdminWebsocketClient:
 
     @chain
     def add_log_message(self, message):
-        self.server.firebase_db.child("logs").push({
+        return self.server.firebase_db.child("logs").push({
             "logged_at": time.time(),
             "authentication": self.authentication,
             "message": message
@@ -118,6 +119,19 @@ class AdminWebsocketClient:
     def is_admin(self, username, password):
         login = self.server.firebase_db.child("admin").get().val()
         return login['username'] == username and login['password'] == password
+
+    def get_user_by_firebase(self, username):
+        return [*self.server.firebase_db                    \
+                .child("users")                             \
+                .order_by_child("username")                 \
+                .equal_to(username)                         \
+                .get().val().values()][0]
+
+    def get_user_deposits(self, username):
+        return self.server.firebase_db.child("deposits").child(username).get().val()
+
+    def get_user_withdrawals(self, username):
+        return self.server.firebase_db.child("withdrawals").child(username).get().val()
 
     @chain
     def load_event(self, event_name):
@@ -128,9 +142,70 @@ class AdminWebsocketClient:
         return self.add_log_message(f"Loading event {event_name!r}") \
                    .send({
                        "action": "load",
-                       "data": self.server.read_file(f"events/{path}")
+                       "data": self.server.read_file(f"admin/events/{path}")
                    })
 
+    @chain
+    def load_callback(self, callback, data):
+        return self.send({
+            "action": "callback",
+            "name": callback,
+            "data": data
+            })
+
+    @authenticated
+    def action_remove_deposit(self, username, uid):
+        self.add_log_message(f"Removing deposit {uid!r} from {username!r}")
+        return self.server.firebase_db.child("deposits").child(username).child(uid).remove()
+
+    @authenticated
+    def action_validate_deposit(self, username, uid):
+        deposit = self.server.firebase_db.child("deposits").child(username).child(uid).get().val()
+        self.add_log_message( ("Invalidating" if deposit['validated'] else "Validating") + f" {uid!r} from {username!r}")
+        return self.server.firebase_db.child("deposits").child(username).child(uid).update({
+            "validated": not deposit['validated']
+            })
+
+    @authenticated
+    def action_remove_withdrawal(self, username, uid):
+        self.add_log_message(f"Removing withdrawal {uid!r} from {username!r}")
+        return self.server.firebase_db.child("withdrawals").child(username).child(uid).remove()
+
+    @authenticated
+    def action_validate_withdrawal(self, username, uid):
+        withdrawal = self.server.firebase_db.child("withdrawals").child(username).child(uid).get().val()
+        self.add_log_message( ("Invalidating" if withdrawal['validated'] else "Validating") + f" {uid!r} from {username!r}")
+        return self.server.firebase_db.child("withdrawals").child(username).child(uid).update({
+            "validated": not withdrawal['validated']
+            })
+
+    @authenticated
+    def action_load_userlist(self):
+        return self.load_callback("load_userlist",
+            list(self.server.firebase_db.child("users").get().val().values())
+            )
+
+    @authenticated
+    def action_load_action(self, name, username):
+        user_data = self.get_user_by_firebase(username)
+        user_data['level'] = get_level(LEVEL_INDICES, user_data['xp'])
+        user_deposits = self.get_user_deposits(username)
+        user_withdrawals = self.get_user_withdrawals(username)
+
+        self.add_log_message(f"{name!r} on {username!r}")
+        return self.load_callback({
+            "view-profile": "on_view_profile",
+            "view-withdrawals": "on_view_withdrawals",
+            "view-deposits": "on_view_deposits",
+            "view-lotteries": "on_view_lotteries",
+            "view-jackpots": "on_view_jackpots",
+            "modify": "on_user_modify"
+            }[name], {
+                "profile": user_data,
+                "deposits": user_deposits,
+                "withdrawals": user_withdrawals
+                })
+        
     @identified
     def action_login(self, username, password):
         if not self.is_admin(username, password):
@@ -140,6 +215,10 @@ class AdminWebsocketClient:
         return self.add_log_message("Logged in successfully")   \
                    .success("Logged in successfully")           \
                    .load_event("home")
+
+    def action_ping(self):
+        self.send(data=b"", opcode=0x09)
+        return self.send({"action": "pong"})
 
     def action_identify(self):
         if (ip := self.headers.get("x-forwarded-for")) is None:
