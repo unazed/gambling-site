@@ -263,7 +263,15 @@ $.extend(true, EVENT_CALLBACKS, {
       </tr>`);
     }
   },
-  on_user_modify: function() {
+  on_user_toggle_disable: function(user) {
+    post_message({
+      action: "toggle_user_disable",
+      username: user.profile.username
+    });
+    $("#disable").html(`<u>${(!user.profile.disabled)? "Undisable": "Disable"}</u>`);
+    return $("#user-information").html(`
+    <p class='lead'>${ (!user.profile.disabled)? "Disabled": "Undisabled"} the user successfully</p>
+      `);
   }
 });
 
@@ -285,10 +293,11 @@ function on_userlist_retrieve(users)
       notify("info", `Lottery points: ${user['lottery']['points']}`);
       notify("info", `Email: ${user['email']}`);
       notify("info", `XP: ${user['xp']}`);
+      const is_disabled = user['disabled'] === undefined? false: user['disabled'];
       $("#main-container").html(`
       <div class="d-flex flex-column flex-grow-1">
         <div class="border-bottom">
-          <h3 class="p-3 ml-3">${user['username']}</h3>
+          <h3 class="p-3 ml-3">${user.username}</h3>
         </div>
         <div class="d-flex flex-grow-1">
           <div class="d-flex flex-column border-right" id="user-options">
@@ -302,8 +311,8 @@ function on_userlist_retrieve(users)
               name="view-lotteries"><u>Lottery history</u></span>
             <span class="p-2 user-action"
               name="view-jackpots"><u>Jackpot history</u></span>
-            <span class="p-2 user-action"
-              name="modify"><u>Modify</u></span>
+            <span class="p-2 user-action" id="disable"
+              name="disable"><u>${is_disabled? "Undisable": "Disable"}</u></span>
           </div>
           <div class="d-flex flex-column flex-grow-1 m-3" id="user-information">
             <small class='text-muted'>loading user information...</small>
@@ -318,7 +327,7 @@ function on_userlist_retrieve(users)
           currently_active_action = action;
         }
         action.click(function() {
-          if (currently_active_action == action) { return; }
+          if (currently_active_action == action && action.attr("name") !== "disable") { return; }
           $("#user-information").html($("<small class='text-muted'>").text("loading user information..."));
           reset_active_state();
           currently_active_action.removeClass("user-action-active");
@@ -333,7 +342,7 @@ function on_userlist_retrieve(users)
       });
       return post_message({
         action: "load_action",
-        username: user['username'],
+        username: user.username,
         name: "view-profile"
       });
     }));

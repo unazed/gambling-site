@@ -1204,6 +1204,12 @@ class GamblingSiteWebsocketClient:
                         }))
                         return
 
+                    user_obj = self.get_user_by_firebase(username=username)
+                    if user_obj.get("disabled", False):
+                        return self.trans.write(self.packet_ctor.construct_response({
+                            "error": "Your account has been disabled"
+                            }))
+
                     self.trans.write(self.packet_ctor.construct_response({
                         "action": "login",
                         "data": {
@@ -1283,6 +1289,11 @@ class GamblingSiteWebsocketClient:
                     }))
                     return
                 print(f"{username!r} logged in manually")
+                user_obj = self.get_user_by_firebase(username=username)
+                if user_obj.get("disabled", False):
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "Your account has been disabled"
+                        }))
                 self.trans.write(self.packet_ctor.construct_response({
                     "action": "login",
                     "data": {

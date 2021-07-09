@@ -199,7 +199,7 @@ class AdminWebsocketClient:
             "view-deposits": "on_view_deposits",
             "view-lotteries": "on_view_lotteries",
             "view-jackpots": "on_view_jackpots",
-            "modify": "on_user_modify"
+            "disable": "on_user_toggle_disable"
             }[name], {
                 "profile": user_data,
                 "deposits": user_deposits,
@@ -215,6 +215,16 @@ class AdminWebsocketClient:
         return self.add_log_message("Logged in successfully")   \
                    .success("Logged in successfully")           \
                    .load_event("home")
+
+    @authenticated
+    def action_toggle_user_disable(self, username):
+        userkey = [*self.server.firebase_db.child("users").order_by_child("username")              \
+                                      .equal_to(username)  \
+                                      .get().val().keys()][0]
+        user = self.get_user_by_firebase(username=username)
+        return self.server.firebase_db.child("users").child(userkey).update({
+            "disabled": not user.get("disabled", False)
+            })
 
     def action_ping(self):
         self.send(data=b"", opcode=0x09)
