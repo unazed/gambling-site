@@ -103,10 +103,11 @@ if (typeof $$jackpots !== "undefined") {
     if (!$("#jackpot-container").length) {
       return clearInterval(window.jackpot_refresh);
     }
+    console.log("in view jackpot");
     window.ws.send(JSON.stringify({
       action: "refresh_jackpot"
     }));
-  }, 500);
+  }, 1500);
 } else {
   window.ws.send(JSON.stringify({
     action: "view_jackpot"

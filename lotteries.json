@@ -1,29 +1,17 @@
 [
   {
     "name": "Basic Lottery",
-    "max_tickets": 5,
     "jackpot": 100,
-    "entry_requirements": {
-      "lottery_points": 1,
-      "min_level": 1
-    }
+    "start_in": 60
   },
   {
     "name": "Intermediate Lottery",
-    "max_tickets": 10,
     "jackpot": 500,
-    "entry_requirements": {
-      "lottery_points": 5,
-      "min_level": 2
-    }
+    "start_in": 120
   },
   {
     "name": "Advanced Lottery",
-    "max_tickets": 10,
     "jackpot": 1000,
-    "entry_requirements": {
-      "lottery_points": 10,
-      "min_level": 5
-    }
+    "start_in": 300
   }
 ]

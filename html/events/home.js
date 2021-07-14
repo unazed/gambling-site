@@ -6,7 +6,7 @@ $("#main_container").append(`
   </p>
   <ul class="service-item list-group list-group-flush">
     <li class="list-group-item bg-transparent">
-      <a class="list-group-item-action" name="view_lottery">Join the lottery</a>
+      <a class="list-group-item-action" name="view_lottery">View the lottery</a>
     </li>
     <li class="service-item list-group-item bg-transparent">
       <a class="list-group-item-action" name="view_jackpot">Gamble in a jackpot against others</a>

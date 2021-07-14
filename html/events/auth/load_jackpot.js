@@ -74,6 +74,11 @@ function load_jackpot(jackpot)
 
   var total_jackpot = 0;
   var total_users = 0;
+ 
+  if (jackpot['enrolled_users'] === undefined)
+  {
+    jackpot = jackpot["$$jackpot_name"];
+  }
   
   for (const [_, bet_amount] of Object.entries(jackpot['enrolled_users']))
   {
@@ -151,7 +156,7 @@ $("#main_container").empty().append(`
     <small class='text-muted m-3'>loading bet list...</small>
   </div>
   <div id="jackpot-control" class="flex-grow-1 ml-3 mr-3">
-    <div id="jackpot-form" class="border-bottom mb-2 pb-2">
+    <div id="jackpot-form" class="d-flex flex-column border-bottom mb-2 pb-2">
 
       <div class="input-group mb-3">
         <div class="input-group-prepend">
@@ -170,10 +175,19 @@ $("#main_container").empty().append(`
 
       <div class="input-group mb-3">
         <div class="input-group-prepend">
+          <span class="input-group-text">Client seed</span>
+        </div>
+        <input id="client-seed" type="text" class="form-control">
+      </div>
+
+      <div class="input-group mb-3">
+        <div class="input-group-prepend">
           <span class="input-group-text">Server seed</span>
         </div>
         <input id="server-seed" type="text" class="form-control" disabled>
       </div>
+
+      <button type="button" id="leave-btn" class="ml-auto btn btn-outline-danger">Leave</button>
 
     </div>
     <div id="jackpot-info" class="d-flex flex-column">
@@ -190,12 +204,21 @@ $("#place-bet-btn").click(function() {
   window.ws.send(JSON.stringify({
     action: "place_bet",
     name: "$$jackpot_name",
-    amount: $("#bet-amount").val()
+    amount: $("#bet-amount").val(),
+    seed: $("#client-seed").val()
   }));
   $(this).prop("disabled", true);
   setTimeout(function() {
     $("#place-bet-btn").prop("disabled", false);
   }, 1000);
+});
+
+$("#leave-btn").click(function() {
+  console.log("sending jackpot leave");
+  window.ws.send(JSON.stringify({
+    action: "leave_jackpot",
+    name: "$$jackpot_name"
+  }));
 });
 
 clearInterval(window.jackpot_refresh);
@@ -204,9 +227,10 @@ window.jackpot_refresh = setInterval(function() {
   if (!$("#jackpot-container").length) {
     return clearInterval(window.jackpot_refresh);
   }
+  console.log("in load jackpot $$jackpot_name");
   window.ws.send(JSON.stringify({
     action: "refresh_jackpot",
-    name: "$$jackpot_name"
+    name: "$$jackpot_name"  /* occasionally this doesn't work for some weird reason */
   }));
-}, 500);
+}, 1500);
 

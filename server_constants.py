@@ -57,10 +57,11 @@ SUPPORTED_WS_ACTIONS = [
     "refresh_jackpot",
     "join_jackpot",
     "jackpot_results",
-    "place_bet"
+    "place_bet",
+    "leave_jackpot"
 ]
 
-RECAPTCHA_MIN_SCORE = 0.5
+RECAPTCHA_MIN_SCORE = 0.1
 XP_MULTIPLIER = 2.5
 JACKPOT_HOUSE_PERC = 0.95
 
@@ -87,6 +88,8 @@ SUPPORTED_WS_EVENTS = {
     "view_jackpot": when_authenticated("view_jackpot.js"),
     "load_jackpot": when_authenticated("load_jackpot.js")
 }
+
+MAX_LOTTERY_NUMBERS = 10
 
 MIMETYPES = {
     "js": "text/javascript",

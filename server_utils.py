@@ -30,9 +30,15 @@ def hash_server_seed(seed):
     return hashlib.sha256(seed.to_bytes(seed.bit_length() // 8 + 1, 'little')).hexdigest()
 
 
+def normalize_bet_amount(amount, range_, min_, max_):
+    if not (min_ <= amount <= max_):
+        return
+    return int(max(1, range_ * ((amount - min_) / (max_ - min_))))
+
+
 def generate_n_numbers(n, seed):
     random.seed(seed or (seed := random.randint(1, 1e15)))
-    _ = (tuple(random.randint(1, 10) for _ in range(n)), seed)  # ??? FIXME
+    _ = (tuple(random.randint(1, 100) for _ in range(n)), seed)  # ??? FIXME
     random.seed()
     return _
 
@@ -78,7 +84,9 @@ def get_crypto_prices(markets):
     if isinstance(markets, str):
         markets = [markets]
     for idx, market in enumerate(markets):
-        if market == "bitcoin":
+        if market == "local":
+            continue
+        elif market == "bitcoin":
             markets[idx] = "BTC"
             market = "BTC"
         elif market == "ethereum":

@@ -4,11 +4,13 @@ window.check_confirmation = {};
 var is_confirmed = false;
 
 function on_wallet(wallet_info) {
+  console.log(wallet_info);
   deposit_info = wallet_info.deposit;
   withdraw_info = wallet_info.withdraw;
 
   btc_usd = wallet_info.balance.btc * wallet_info.market_prices['BTC']['USD'];
   eth_usd = wallet_info.balance.eth * wallet_info.market_prices['ETH']['USD'];
+  usd_btc = wallet_info.balance.local / wallet_info.market_prices['BTC']['USD'];
 
   $("#wallet").empty().append(`
 <div id="wallet-info" class="p-3 mb-2">
@@ -17,9 +19,9 @@ function on_wallet(wallet_info) {
 `);
 
   $("#wallet-info").append(
-    $("<span>").text("Bitcoin: " + wallet_info.balance.btc),
+    $("<span>").text("Bitcoin: " + (wallet_info.balance.btc + usd_btc)),
     $("<span>").text("Ethereum: " + wallet_info.balance.eth),
-    $("<span>").text("Net total: $" + ( ( (btc_usd + eth_usd) * 100 ) << 0 ) / 100)
+    $("<span>").text("Net total: $" + (( ( (btc_usd + eth_usd) * 100 ) << 0 ) / 100 + wallet_info.balance.local))
   );
 
   $("#wallet-action").empty().append(`
@@ -361,7 +363,7 @@ $("#main_container").empty().append(
 
 window.ws.send(JSON.stringify({
   action: "load_wallet",
-  markets: ["bitcoin", "ethereum"]
+  markets: ["bitcoin", "ethereum", "local"]
 }));
 
 window.ws.send(JSON.stringify({

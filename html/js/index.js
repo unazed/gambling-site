@@ -444,7 +444,7 @@ $(window).on("load", function() {
         action: "event_handler",
         name: "navigation"
       }))
-    }, 1000);
+    }, 2500);
     ws.send(JSON.stringify({
       action: "userlist_update"
     }));
