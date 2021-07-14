@@ -1,6 +1,7 @@
 from html import escape
 import hashlib
 import json
+import math
 import random
 import copy
 import requests
@@ -37,10 +38,8 @@ def normalize_bet_amount(amount, range_, min_, max_):
 
 
 def generate_n_numbers(n, seed):
-    random.seed(seed or (seed := random.randint(1, 1e15)))
-    _ = (tuple(random.randint(1, 100) for _ in range(n)), seed)  # ??? FIXME
-    random.seed()
-    return _
+    ng = prng(seed or random.randint(1, 1e15))
+    return (tuple(randint(ng, 1, 100) for _ in range(n)), seed)
 
 
 def is_sufficient_funds(client, amount):
@@ -61,13 +60,30 @@ def is_sufficient_funds(client, amount):
     return {"btc": btc_balance, "eth": eth_amount}
 
 
+def prng(seed):
+    def inner():
+        nonlocal seed
+        x = math.sin(seed) * 1e4
+        seed += 1
+        return x - math.floor(x)
+    return inner
+
+
+def randint(ng, min_, max_):
+    return round((max_ - min_) * ng() + min_)
+
+
+def choice(ng, seq):
+    return seq[randint(ng, 0, len(seq))]
+
+
 def generate_jackpot_uid(seed, name):
-    random.seed(seed)
-    return ''.join(chr(random.randint(97, 122)) for _ in range(16))
+    ng = prng(seed)
+    return ''.join(chr(randint(ng, 97, 122)) for _ in range(16))
 
 
 def generate_jackpot_winner(jackpot, jackpot_templ):
-    random.seed(jackpot['server_seed'])
+    ng = prng(jackpot['server_seed'])
     jackpot = copy.deepcopy(jackpot)
     jackpot['enrolled_users'] = sorted((user, amount) for user, amount in jackpot['enrolled_users'].items())
     proportion = []
@@ -75,7 +91,7 @@ def generate_jackpot_winner(jackpot, jackpot_templ):
         if amount is None:
             continue
         proportion.extend([user] * (int(amount) - int(jackpot_templ['min']) + 1))
-    result = random.choice(proportion)
+    result = choice(ng, proportion)
     return result
 
 

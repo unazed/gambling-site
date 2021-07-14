@@ -3,6 +3,7 @@ from html import escape
 from secrets import token_urlsafe
 import asyncio
 import base64
+import binascii
 import copy
 import datetime
 import hashlib
@@ -245,7 +246,6 @@ class GamblingSiteWebsocketClient:
             elif time.time() - lottery['started_at'] >= lottery['start_in']:
                 lottery['start_in'] = None
                 winners = self.decide_lottery_winners(lottery)
-                print(lottery)
                 print(f"{', '.join(winners) or 'No one'} won the {name}")
                 if winners:
                     self.broadcast_message({
@@ -1371,6 +1371,7 @@ class GamblingSiteWebsocketClient:
                         "error": "you can't change your bet within 5 seconds of closing"
                         }))
                 
+                seed = int(binascii.hexlify(seed.encode()), 16)
                 try:
                     bet_amount = float(bet_amount)
                 except ValueError:
