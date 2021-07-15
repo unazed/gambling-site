@@ -58,7 +58,8 @@ SUPPORTED_WS_ACTIONS = [
     "join_jackpot",
     "jackpot_results",
     "place_bet",
-    "leave_jackpot"
+    "leave_jackpot",
+    "load_history"
 ]
 
 RECAPTCHA_MIN_SCORE = 0.1
@@ -80,6 +81,7 @@ SUPPORTED_WS_EVENTS = {
     "forbidden": "html/events/forbidden.js",
     "chatbox": "html/events/chatbox.js",
     "notify": "html/events/notify.js",
+    "provably_fair": when_authenticated("provably_fair.js"),
     "wallet": when_authenticated("wallet.js"),
     "show_profile": when_authenticated("show_profile.js"),
     "view_lottery": when_authenticated("lottery.js"),

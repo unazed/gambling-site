@@ -17,6 +17,14 @@ if ($$username && !$("a#nav-username").get().length) {
     )
   ).append(
     $("<li></li>").addClass("nav-item").append(
+      $("<a></a>").addClass("nav-link").text("provably fair").attr({
+        id: "nav-provably-fair",
+        href: "#",
+        name: "provably_fair"
+      })
+    )
+  ).append(
+    $("<li></li>").addClass("nav-item").append(
       $("<a></a>").addClass("nav-link").text("logout").attr({
         id: "nav-logout",
         href: "#",
@@ -29,8 +37,9 @@ if ($$username && !$("a#nav-username").get().length) {
   $("#title").text("Pots Bet (" + $$username + ")");
 } else if (!$$username && (nav = $("a#nav-username")).get().length) {
   nav.parent().remove();
-  $("a#nav-logout").parent().remove();
-  $("a#nav-wallet").parent().remove();
+  $("#nav-logout").parent().remove();
+  $("#nav-wallet").parent().remove();
+  $("#nav-provably-fair").parent().remove();
 
   $("#nav-login").parent().show();
   $("#nav-register").parent().show();

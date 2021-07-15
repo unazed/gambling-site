@@ -235,7 +235,7 @@ class GamblingSiteWebsocketClient:
         for jackpot, users in lottery['enrolled_users'].items():
             for user, info in users.items():
                 if any(number in server_numbers for number in info['numbers']):
-                    winners.update((user,))
+                    winners.add((jackpot, user))
         return list(winners)
 
     def check_lotteries(self):
@@ -246,21 +246,23 @@ class GamblingSiteWebsocketClient:
             elif time.time() - lottery['started_at'] >= lottery['start_in']:
                 lottery['start_in'] = None
                 winners = self.decide_lottery_winners(lottery)
-                print(f"{', '.join(winners) or 'No one'} won the {name}")
+                print(f"{', '.join(winner for jackpot, winner in winners) or 'No one'} won the {name}")
                 if winners:
                     self.broadcast_message({
                         "username": "SERVER",
-                        "content": f"{', '.join(winners)} won the {name}"
+                        "content": f"{', '.join(winner for jackpot, winner in winners)} won the {name}"
                     })
                 else:
                     self.broadcast_message({
                         "username": "SERVER",
                         "content": f"Nobody won the {name}"
                         })
-                for winner in winners:
+                self.add_lottery_to_archive(lottery)
+                for jackpot, winner in winners:
                     self.add_user_deposit({
                         "id": lottery['uid'],
                         "expires_at": "n/a",
+                        "type": "lottery",
                         "addresses": {
                             "local": name,
                             },
@@ -274,6 +276,15 @@ class GamblingSiteWebsocketClient:
                         "requested_currency": "local",
                         }, username=winner, conv_date=False, meta=json.loads(json.dumps(lottery)),
                            validate=True)
+                for jackpot, users in lottery['enrolled_users'].items():
+                    for username in users:
+                        self.add_user_lottery({
+                            "from_jackpot": jackpot,
+                            "winners": winners,
+                            "lottery_name": name,
+                            "winnings": lottery_templ['jackpot'] if (jackpot, username) in winners else 0,
+                            **lottery
+                        }, username=username)
                 del server.active_lotteries[name]
                 server.active_lotteries[name]['start_in'] = lottery_templ['start_in']
 
@@ -283,6 +294,18 @@ class GamblingSiteWebsocketClient:
                 del lottery['enrolled_users'][jackpot_name][username]
             except KeyError:
                 continue
+
+    def add_user_lottery(self, lottery, username=None):
+        print(f"adding lottery archive to {username or self.authentication['username']}")
+        self.update_user_by_firebase({
+            f"lottery/history/{lottery['uid']}": lottery
+            }, username=username)
+
+    def add_lottery_to_archive(self, lottery):
+        print(f"archiving lottery {lottery['uid']}")
+        server.firebase_db.child("archived_lotteries").update({
+            lottery['uid']: lottery
+            })
 
     def add_jackpot_to_archive(self, jackpot):
         if jackpot['jackpot_uid'] is None:
@@ -516,7 +539,8 @@ class GamblingSiteWebsocketClient:
                     "jackpot_name": jackpot_name,
                     "jackpot": sum(amount for amount in jackpot['enrolled_users'].values() if amount is not None) \
                                     * server_constants.JACKPOT_HOUSE_PERC,
-                    "winner": winner
+                    "winner": winner,
+                    "templ": server.jackpots[jackpot_name]
                     })
                 self.add_user_jackpot(jackpot_save)
 
@@ -555,6 +579,7 @@ class GamblingSiteWebsocketClient:
                                 "created_at": (created_at := time.strftime("%Y-%m-%d %H:%M:%S")),
                                 "expires_at": "n/a",
                                 "id": jackpot['jackpot_uid'],
+                                "type": "jackpot",
                                 "requested_currency": "bitcoin",
                                 }, conv_date=False, validate=True, meta={
                                     "server-seed": jackpot['server_seed'],
@@ -1371,7 +1396,10 @@ class GamblingSiteWebsocketClient:
                         "error": "you can't change your bet within 5 seconds of closing"
                         }))
                 
-                seed = int(binascii.hexlify(seed.encode()), 16)
+                if not seed:
+                    seed = server_utils.generate_server_seed()
+                else:
+                    seed = int(binascii.hexlify(seed.encode()), 16)
                 try:
                     bet_amount = float(bet_amount)
                 except ValueError:
@@ -1428,6 +1456,18 @@ class GamblingSiteWebsocketClient:
                         "eth": eth_amount
                         }
                     }))
+            elif action == "load_history":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to view history"
+                        }))
+                user_obj = self.get_user_by_firebase()
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": action,
+                    "data": {
+                        "lotteries": [*user_obj['lottery'].get("history", {}).values()],
+                        "jackpots": [*user_obj.get("jackpot", {}).values()]
+                    }}))
             elif action == "profile_info":
                 if not self.authentication:
                     return self.trans.write(self.packet_ctor.construct_response({

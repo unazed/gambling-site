@@ -23,7 +23,7 @@ if ($$username) {
     window.ws.send(JSON.stringify({
       action: "event_handler",
       name: "home"
-    }))
+    }));
   }, 2000);
 } else {
   $(button).click(function() {

@@ -43,12 +43,12 @@ def generate_n_numbers(n, seed):
 
 
 def is_sufficient_funds(client, amount):
-    btc_amount = usd_to_crypto(amount, "bitcoin")
+    btc_amount = usd_to_crypto(amount, "bitcoin") 
     eth_amount = usd_to_crypto(amount, "ethereum")
 
-    btc_balance = client.get_balance("bitcoin")
+    btc_balance = client.get_balance("bitcoin") + usd_to_crypto(client.get_balance("local"), "bitcoin")
     eth_balance = client.get_balance("ethereum")
-    
+     
     if btc_balance < btc_amount:
         eth_amount = usd_to_crypto(crypto_to_usd(btc_amount - btc_balance, "BTC"), "ethereum")
     else:
@@ -74,7 +74,7 @@ def randint(ng, min_, max_):
 
 
 def choice(ng, seq):
-    return seq[randint(ng, 0, len(seq))]
+    return seq[randint(ng, 0, len(seq)-1)]
 
 
 def generate_jackpot_uid(seed, name):

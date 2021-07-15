@@ -219,6 +219,12 @@ $("#leave-btn").click(function() {
     action: "leave_jackpot",
     name: "$$jackpot_name"
   }));
+  setTimeout(function() {
+    window.ws.send(JSON.stringify({
+      action: "event_handler",
+      name: "home"
+    }));
+  }, 500);
 });
 
 clearInterval(window.jackpot_refresh);

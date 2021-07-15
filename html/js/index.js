@@ -9,6 +9,23 @@ var last_ping = +new Date;
 var username_profile = null;
 window.lottery_intervals = {};
 
+function create_prng(seed) {
+  return function() {
+    x = Math.sin(seed++) * 10000;
+    return x - Math.floor(x);
+  }
+}
+
+function prng_randint(ng, start, end)
+{
+  return Math.round((end - start) * ng() + start);
+}
+
+function prng_choice(ng, seq)
+{
+  return seq[prng_randint(ng, 0, seq.length - 1)];
+}
+
 function is_mobile() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
@@ -359,6 +376,10 @@ function handle_ws_message(event) {
   } else if (content.action === "refresh_jackpot") {
     if (typeof on_jackpot_refresh !== "undefined") {
       on_jackpot_refresh(content.data);
+    }
+  } else if (content.action === "load_history") {
+    if (typeof on_history_load !== "undefined") {
+      on_history_load(content.data);
     }
   } else if (content.warning) {
     display_notif(content.warning, "warning");
