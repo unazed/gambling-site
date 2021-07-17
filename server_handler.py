@@ -492,6 +492,19 @@ class GamblingSiteWebsocketClient:
                     "action": action,
                     "data": jackpots
                     }))
+            elif action == "load_lotteries":
+                if not self.authentication:
+                    return self.trans.write(self.packet_ctor.construct_response({
+                        "error": "must be logged in to view lotteries"
+                        }))
+                lotteries = copy.deepcopy(server.active_lotteries)
+                for name, lottery in lotteries.items():
+                    lottery['server_seed'] = server_utils.hash_server_seed(lottery['server_seed'])
+                    del lottery['numbers']
+                self.trans.write(self.packet_ctor.construct_response({
+                    "action": action,
+                    "data": lotteries
+                    }))
             elif action == "jackpot_results":
                 if not self.authentication:
                     return self.trans.write(self.packet_ctor.construct_response({

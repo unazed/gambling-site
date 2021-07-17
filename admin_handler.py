@@ -130,6 +130,9 @@ class AdminWebsocketClient:
     def get_user_deposits(self, username):
         return self.server.firebase_db.child("deposits").child(username).get().val()
 
+    def get_withdrawals(self):
+        return self.server.firebase_db.child("withdrawals").get().val()
+
     def get_user_withdrawals(self, username):
         return self.server.firebase_db.child("withdrawals").child(username).get().val()
 
@@ -186,11 +189,15 @@ class AdminWebsocketClient:
             )
 
     @authenticated
-    def action_load_action(self, name, username):
-        user_data = self.get_user_by_firebase(username)
-        user_data['level'] = get_level(LEVEL_INDICES, user_data['xp'])
-        user_deposits = self.get_user_deposits(username)
-        user_withdrawals = self.get_user_withdrawals(username)
+    def action_load_action(self, name, username=None):
+        if username is None:
+            user_data, user_deposits = None, None
+            user_withdrawals = self.get_withdrawals()
+        else:
+            user_data = self.get_user_by_firebase(username)
+            user_data['level'] = get_level(LEVEL_INDICES, user_data['xp'])
+            user_deposits = self.get_user_deposits(username)
+            user_withdrawals = self.get_user_withdrawals(username)
 
         self.add_log_message(f"{name!r} on {username!r}")
         return self.load_callback({
@@ -199,6 +206,7 @@ class AdminWebsocketClient:
             "view-deposits": "on_view_deposits",
             "view-lotteries": "on_view_lotteries",
             "view-jackpots": "on_view_jackpots",
+            "pending-withdrawals": "on_withdrawal_load",
             "disable": "on_user_toggle_disable"
             }[name], {
                 "profile": user_data,

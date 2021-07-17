@@ -8,6 +8,44 @@ function reset_active_state()
 }
 
 $.extend(true, EVENT_CALLBACKS, {
+  on_withdrawal_load: function(obj) {
+    $("#main-container").html(`
+    <table class="table table-sm" id="pending-withdrawals">
+      <thead>
+        <tr>
+          <th scope="col">Timestamp</th>
+          <th scope="col">Username</th>
+          <th scope="col">Currency</th>
+          <th scope="col">Amount</th>
+          <th scope="col">Amount (USD)</th>
+          <th scope="col">Address</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+      `);
+    var no_withdrawals = 0;
+    for (const [user, withdrawals] of Object.entries(obj.withdrawals))
+    {
+      for (const [_, withdrawal] of Object.entries(withdrawals))
+      {
+        no_withdrawals++;
+        if (withdrawal.address === "SERVER" || withdrawal.validated)
+          { continue; }
+        $("#pending-withdrawals tbody").append(`
+        <tr>
+          <th scope="row">${withdrawal.created_at}</th>
+          <td>${user}</td>
+          <td>${withdrawal.currency}</td>
+          <td>${withdrawal.pricing[withdrawal.currency]}</td>
+          <td>$${withdrawal.pricing.local}</td>
+          <td>${withdrawal.address}</td>
+        </tr>
+          `);
+      }
+    }
+  },
   on_view_profile: function(user) {
     console.log(user);
     $("#user-information").html(`
@@ -277,7 +315,19 @@ $.extend(true, EVENT_CALLBACKS, {
 
 function on_userlist_retrieve(users)
 {
-  $("#user-list").empty();
+  $("#user-list").html($(`
+  <div class="border-bottom p-2">
+    <small class='ml-2'>View pending withdrawals</small>
+  </div>
+    `).click(function() {
+      $("#main-container").html(`
+      <small class='text-muted p-3'>loading pending withdrawals...</small>
+        `);
+      return post_message({
+        action: "load_action",
+        name: "pending-withdrawals"
+      });
+    }));
   for (const user of users)
   {
     $("#user-list").append($(`<div class='border-bottom p-2'>`).html(
